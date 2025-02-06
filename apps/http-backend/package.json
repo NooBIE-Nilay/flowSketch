@@ -11,13 +11,15 @@
   },
   "devDependencies": {
     "@repo/typescript-config": "workspace:*",
-    "@types/express": "^5.0.0"
+    "@types/express": "^5.0.0",
+    "@repo/backend-common": "workspace:*",
+    "@types/jsonwebtoken": "^9.0.8",
+    "@repo/common": "workspace:*"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "@types/jsonwebtoken": "^9.0.8",
     "express": "^4.21.2",
     "jsonwebtoken": "^9.0.2"
   }
