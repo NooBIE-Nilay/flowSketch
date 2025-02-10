@@ -1,12 +1,13 @@
 import { WebSocketServer } from "ws";
-import jwt, { JwtPayload } from "jsonwebtoken";
-import { JWT_SECRET } from "@repo/backend-common/config";
-const PORT = Number(process.env.WS_PORT) || 8080;
+import jwt, { decode, JwtPayload } from "jsonwebtoken";
+import { JWT_SECRET, WS_PORT } from "@repo/backend-common/config";
+const PORT = WS_PORT;
 const wss = new WebSocketServer({ port: PORT });
 wss.on("connection", function connection(ws, req) {
   const token = req.headers["authorization"] ?? "";
   const decoded = jwt.verify(token, JWT_SECRET);
   if (!decoded || !(decoded as JwtPayload).userId) {
+    ws.send("Invalid JWT");
     ws.close();
     return;
   }

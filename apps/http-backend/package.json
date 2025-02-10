@@ -10,17 +10,18 @@
     "dev": "pnpm run build && pnpm run start"
   },
   "devDependencies": {
+    "@repo/backend-common": "workspace:*",
     "@repo/typescript-config": "workspace:*",
     "@types/express": "^5.0.0",
-    "@repo/backend-common": "workspace:*",
-    "@types/jsonwebtoken": "^9.0.8",
-    "@repo/common": "workspace:*"
+    "@types/jsonwebtoken": "^9.0.8"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "@repo/common": "workspace:*",
     "express": "^4.21.2",
-    "jsonwebtoken": "^9.0.2"
+    "jsonwebtoken": "^9.0.2",
+    "zod": "^3.24.1"
   }
 }
