@@ -12,3 +12,6 @@ export const SignupSchema = z.object({
 export const CreateRoomSchema = z.object({
   slug: z.string(),
 });
+export const GetChatsSchema = z.object({
+  roomId: z.string(),
+});

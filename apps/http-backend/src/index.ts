@@ -4,6 +4,7 @@ import { authMiddleware } from "./middleware";
 import { JWT_SECRET, HTTP_PORT } from "@repo/backend-common/config";
 import {
   CreateRoomSchema,
+  GetChatsSchema,
   SigninSchema,
   SignupSchema,
 } from "@repo/common/types";
@@ -11,7 +12,7 @@ import { prisma } from "@repo/db/client";
 const app = express();
 const PORT = HTTP_PORT;
 
-app.use(express.json()); // Ensure the app can parse JSON bodies
+app.use(express.json());
 
 app.get("/", (req, res) => {
   res.json({ msg: "Hello From HTTP Server" });
@@ -23,12 +24,9 @@ app.post("/signup", async (req, res) => {
     res.status(400).json({ message: "Incorrect Inputs" });
     return;
   }
-  const user = {
-    ...parsedBody.data,
-    avatar:
-      parsedBody.data.avatar ||
-      "https://www.freepik.com/free-vector/young-man-orange-hoodie_336636034.htm#fromView=keyword&page=1&position=6&uuid=bdcfb413-bc08-4d9d-b902-e4b26c43456f&query=Avatar",
-  };
+  //TODO: Hash Password Before Saving
+  const user = parsedBody.data;
+  //TODO: Combine Checking and Creating to a Single Req by checking for exception and Hnadling it better
   const userInDb = await prisma.user.findFirst({
     where: { email: parsedBody.data.email },
   });
@@ -54,6 +52,7 @@ app.get("/signin", async (req, res) => {
     return;
   }
   const user = parsedBody.data;
+  //TODO: Verify Hashed Password
   const validatedUser = await prisma.user.findFirst({
     where: { ...user },
   });
@@ -78,6 +77,12 @@ app.post("/room", authMiddleware, async (req, res) => {
     //@ts-ignore
     adminId: req.userId,
   };
+  //TODO: Combine Checking and Creating to a Single Req by checking for exception and Hnadling it better
+  const presentRoom = await prisma.room.findUnique({ where: room });
+  if (presentRoom) {
+    res.status(400).json({ message: "Room Slug Already Exists!" });
+    return;
+  }
   const createdRoom = await prisma.room.create({ data: room });
   if (!createdRoom) {
     res.status(500).json({ message: "Cannot create User" });
@@ -86,6 +91,29 @@ app.post("/room", authMiddleware, async (req, res) => {
   res.status(201).json({
     roomId: createdRoom.id,
   });
+});
+app.get("/chats", authMiddleware, async (req, res) => {
+  const parsedBody = GetChatsSchema.safeParse(req.body);
+  if (!parsedBody.success) {
+    res.status(400).json({ message: "Incorrect Inputs" });
+    return;
+  }
+  try {
+    const roomId = Number(parsedBody.data.roomId);
+    //TODO: Verirfy if user is part of the Room Or Not!
+    const chats = await prisma.chat.findMany({
+      where: {
+        roomId,
+      },
+    });
+    if (!chats) {
+      res.status(500).json({ message: "Caanot Get Data From DB" });
+      return;
+    }
+    res.status(200).json(chats);
+  } catch (e) {
+    res.status(400).json({ message: "Invalid RoomID" });
+  }
 });
 
 app.listen(PORT, () =>
