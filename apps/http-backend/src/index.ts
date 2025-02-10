@@ -7,6 +7,7 @@ import {
   SigninSchema,
   SignupSchema,
 } from "@repo/common/types";
+import { prisma } from "@repo/db/client";
 const app = express();
 const PORT = HTTP_PORT;
 
@@ -16,41 +17,74 @@ app.get("/", (req, res) => {
   res.json({ msg: "Hello From HTTP Server" });
 });
 
-app.post("/signup", (req, res) => {
-  // Changed to POST for signup
-  const data = SignupSchema.safeParse(req.body);
-  if (!data.success) {
+app.post("/signup", async (req, res) => {
+  const parsedBody = SignupSchema.safeParse(req.body);
+  if (!parsedBody.success) {
     res.status(400).json({ message: "Incorrect Inputs" });
     return;
   }
-  //TODO: DB call here
-
-  res.json({ userId: 123 });
+  const user = {
+    ...parsedBody.data,
+    avatar:
+      parsedBody.data.avatar ||
+      "https://www.freepik.com/free-vector/young-man-orange-hoodie_336636034.htm#fromView=keyword&page=1&position=6&uuid=bdcfb413-bc08-4d9d-b902-e4b26c43456f&query=Avatar",
+  };
+  const userInDb = await prisma.user.findFirst({
+    where: { email: parsedBody.data.email },
+  });
+  if (userInDb) {
+    res.status(400).json({ message: "User Already Present!" });
+    return;
+  }
+  const createdUser = await prisma.user.create({
+    data: user,
+  });
+  if (!createdUser) {
+    res.status(500).json({ message: "Failed To Create User" });
+    return;
+  }
+  const token = jwt.sign({ userId: createdUser.id }, JWT_SECRET);
+  res.status(201).json({ token });
 });
 
-app.post("/signin", (req, res) => {
-  // Changed to POST for signin
-  const data = SigninSchema.safeParse(req.body);
-  if (!data.success) {
+app.get("/signin", async (req, res) => {
+  const parsedBody = SigninSchema.safeParse(req.body);
+  if (!parsedBody.success) {
     res.status(400).json({ message: "Incorrect Inputs" });
     return;
   }
-  //TODO: Validate user is a valid user from DB!
-  const userId = 123;
-  const token = jwt.sign({ userId }, JWT_SECRET);
-  res.json({ userId, token });
+  const user = parsedBody.data;
+  const validatedUser = await prisma.user.findFirst({
+    where: { ...user },
+  });
+  if (!validatedUser) {
+    res.status(401).json({
+      messsage: "Invalid Username/Password",
+    });
+    return;
+  }
+  const token = jwt.sign({ userId: validatedUser.id }, JWT_SECRET);
+  res.status(201).json({ token });
 });
 
-app.post("/room", authMiddleware, (req, res) => {
-  // Changed to POST for room creation
-  const data = CreateRoomSchema.safeParse(req.body);
-  if (!data.success) {
+app.post("/room", authMiddleware, async (req, res) => {
+  const parsedBody = CreateRoomSchema.safeParse(req.body);
+  if (!parsedBody.success) {
     res.status(400).json({ message: "Incorrect Inputs" });
     return;
   }
-  //TODO: DB call
-  res.json({
-    roomId: 23,
+  const room = {
+    slug: parsedBody.data.slug,
+    //@ts-ignore
+    adminId: req.userId,
+  };
+  const createdRoom = await prisma.room.create({ data: room });
+  if (!createdRoom) {
+    res.status(500).json({ message: "Cannot create User" });
+    return;
+  }
+  res.status(201).json({
+    roomId: createdRoom.id,
   });
 });
 

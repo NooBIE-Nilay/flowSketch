@@ -1,13 +1,14 @@
 import { z } from "zod";
 export const SigninSchema = z.object({
-  username: z.string(),
+  email: z.string(),
   password: z.string(),
 });
 export const SignupSchema = z.object({
   name: z.string(),
-  username: z.string(),
+  email: z.string(),
+  avatar: z.string().optional(),
   password: z.string(),
 });
 export const CreateRoomSchema = z.object({
-  name: z.string(),
+  slug: z.string(),
 });

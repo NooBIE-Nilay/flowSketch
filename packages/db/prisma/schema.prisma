@@ -14,10 +14,10 @@ datasource db {
 }
 model User {
   id                    String    @id @default(uuid())
-  email              String
-  password       String
-  name              String
-  avatar              String
+  email              String @unique
+  password      String
+  name             String
+  avatar            String?
   rooms Room[]
   chats Chat[]
 }

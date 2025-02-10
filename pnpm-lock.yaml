@@ -23,6 +23,9 @@ importers:
       '@repo/common':
         specifier: workspace:*
         version: link:../../packages/common
+      '@repo/db':
+        specifier: workspace:*
+        version: link:../../packages/db
       express:
         specifier: ^4.21.2
         version: 4.21.2

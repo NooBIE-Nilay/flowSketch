@@ -19,6 +19,7 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "@repo/db": "workspace:*",
     "@repo/common": "workspace:*",
     "express": "^4.21.2",
     "jsonwebtoken": "^9.0.2",
