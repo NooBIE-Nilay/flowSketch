@@ -119,7 +119,29 @@ app.get("/chats/:roomId", authMiddleware, async (req, res) => {
     return;
   }
 });
-
+app.get("/room/:slug", authMiddleware, async (req, res) => {
+  try {
+    if (!req.params.slug) {
+      res.status(400).json({ message: "Invalid Slug" });
+      return;
+    }
+    const slug = req.params.slug;
+    //TODO: Verirfy if user is part of the Room Or Not!
+    const room = await prisma.room.findFirst({
+      where: {
+        slug,
+      },
+    });
+    if (!room) {
+      res.status(500).json({ message: "Caanot Get Data From DB" });
+      return;
+    }
+    res.status(200).json(room);
+  } catch (e) {
+    res.status(400).json({ message: "Invalid RoomID" });
+    return;
+  }
+});
 app.listen(PORT, () =>
   console.log(`HTTP Server Running at http://localhost:${PORT}`)
 );
