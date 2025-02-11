@@ -92,14 +92,13 @@ app.post("/room", authMiddleware, async (req, res) => {
     roomId: createdRoom.id,
   });
 });
-app.get("/chats", authMiddleware, async (req, res) => {
-  const parsedBody = GetChatsSchema.safeParse(req.body);
-  if (!parsedBody.success) {
-    res.status(400).json({ message: "Incorrect Inputs" });
-    return;
-  }
+app.get("/chats/:roomId", authMiddleware, async (req, res) => {
   try {
-    const roomId = Number(parsedBody.data.roomId);
+    if (!req.params.roomId) {
+      res.status(400).json({ message: "Invalid RoomID" });
+      return;
+    }
+    const roomId = Number(req.params.roomId);
     //TODO: Verirfy if user is part of the Room Or Not!
     const chats = await prisma.chat.findMany({
       where: {
@@ -113,6 +112,7 @@ app.get("/chats", authMiddleware, async (req, res) => {
     res.status(200).json(chats);
   } catch (e) {
     res.status(400).json({ message: "Invalid RoomID" });
+    return;
   }
 });
 
