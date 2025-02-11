@@ -20,6 +20,7 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "@repo/db": "workspace:*",
     "@types/jsonwebtoken": "^9.0.8",
     "jsonwebtoken": "^9.0.2",
     "ws": "^8.18.0"
