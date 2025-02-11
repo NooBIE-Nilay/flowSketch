@@ -104,6 +104,10 @@ app.get("/chats/:roomId", authMiddleware, async (req, res) => {
       where: {
         roomId,
       },
+      orderBy: {
+        id: "desc",
+      },
+      take: 50,
     });
     if (!chats) {
       res.status(500).json({ message: "Caanot Get Data From DB" });
