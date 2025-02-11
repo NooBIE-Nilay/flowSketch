@@ -1,5 +1,5 @@
 import { WebSocketServer } from "ws";
-import jwt, { decode, JwtPayload } from "jsonwebtoken";
+import jwt from "jsonwebtoken";
 import { JWT_SECRET, WS_PORT } from "@repo/backend-common/config";
 const PORT = WS_PORT;
 function validateUser(token: string) {
@@ -8,6 +8,7 @@ function validateUser(token: string) {
   return decoded.userId;
 }
 const wss = new WebSocketServer({ port: PORT });
+console.log("Server Running in PORT: ", PORT);
 wss.on("connection", function connection(ws, req) {
   const token = req.headers["authorization"] ?? "";
   const userId = validateUser(token);
@@ -16,7 +17,6 @@ wss.on("connection", function connection(ws, req) {
     ws.close();
     return;
   }
-
   ws.on("message", function message(data) {
     ws.send("ping!");
   });
