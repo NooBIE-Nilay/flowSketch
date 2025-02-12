@@ -4,7 +4,6 @@ import { authMiddleware } from "./middleware";
 import { JWT_SECRET, HTTP_PORT } from "@repo/backend-common/config";
 import {
   CreateRoomSchema,
-  GetChatsSchema,
   SigninSchema,
   SignupSchema,
 } from "@repo/common/types";
