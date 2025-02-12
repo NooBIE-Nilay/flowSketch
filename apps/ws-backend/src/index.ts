@@ -22,10 +22,15 @@ function validateUser(token: string) {
 const wss = new WebSocketServer({ port: PORT });
 console.log("Server Running in PORT: ", PORT);
 wss.on("connection", (ws, req) => {
-  const token = req.headers["authorization"] ?? "";
-  const userId = validateUser(token);
+  const url = req.url;
+  if (!url) {
+    ws.close();
+    return;
+  }
+  const token = new URLSearchParams(url.split("?")[1]).get("token") || "";
+  let userId = validateUser(token);
   if (!userId) {
-    ws.send("Invalid JWT");
+    ws.send(JSON.stringify({ type: "error", message: "Invalid JWT" }));
     ws.close();
     return;
   }
