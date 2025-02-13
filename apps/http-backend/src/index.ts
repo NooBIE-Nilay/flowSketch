@@ -8,10 +8,12 @@ import {
   SignupSchema,
 } from "@repo/common/types";
 import { prisma } from "@repo/db/client";
+import cors from "cors";
 const app = express();
 const PORT = HTTP_PORT;
 
 app.use(express.json());
+app.use(cors());
 
 app.get("/", (req, res) => {
   res.json({ msg: "Hello From HTTP Server" });
@@ -45,24 +47,28 @@ app.post("/signup", async (req, res) => {
 });
 
 app.get("/signin", async (req, res) => {
-  const parsedBody = SigninSchema.safeParse(req.body);
-  if (!parsedBody.success) {
+  const userCredentials = {
+    email: req.headers.email,
+    password: req.headers.password,
+  };
+  const parsedData = SigninSchema.safeParse(userCredentials);
+  if (!parsedData.success) {
     res.status(400).json({ message: "Incorrect Inputs" });
     return;
   }
-  const user = parsedBody.data;
+  const user = parsedData.data;
   //TODO: Verify Hashed Password
   const validatedUser = await prisma.user.findFirst({
     where: { ...user },
   });
   if (!validatedUser) {
     res.status(401).json({
-      messsage: "Invalid Username/Password",
+      message: "Invalid Username/Password",
     });
     return;
   }
   const token = jwt.sign({ userId: validatedUser.id }, JWT_SECRET);
-  res.status(201).json({ token });
+  res.status(200).json({ token });
 });
 
 app.post("/room", authMiddleware, async (req, res) => {
