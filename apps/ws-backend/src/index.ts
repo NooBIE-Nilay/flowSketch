@@ -60,7 +60,7 @@ wss.on("connection", (ws, req) => {
         const { roomId, message } = parsedData;
         const sender = users.find((x) => x.ws === ws);
         users.forEach((user) => {
-          if (user.rooms.includes(roomId)) {
+          if (user.rooms.includes(`${roomId}`)) {
             user.ws.send(
               JSON.stringify({
                 type: "chat",

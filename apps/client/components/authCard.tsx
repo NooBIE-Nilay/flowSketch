@@ -27,8 +27,8 @@ export default function AuthCard({
 }: {
   createAccount: boolean;
 }) {
-  //TODO: Change Cards to include Forms and use react useForms Hook
   const router = useRouter();
+  //TODO: Change Cards to include Forms and use react useForms Hook
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [name, setName] = useState("");
@@ -64,7 +64,6 @@ export default function AuthCard({
   }
 
   async function handleSignup() {
-    const router = useRouter();
     const parsedData = SignupSchema.safeParse({ name, email, password });
     if (!parsedData || parsedData.error) {
       alert(parsedData.error.message);
