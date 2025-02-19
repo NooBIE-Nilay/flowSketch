@@ -6,9 +6,10 @@ import Canvas from "./Canvas";
 //TODO: Use Redux to Fix this ugly state management
 export default function CanvasConnectorRoom({ roomId }: { roomId: string }) {
   const [socket, setSocket] = useState<WebSocket | null>(null);
-  const [token, setToken] = useState(localStorage.getItem("token") || "");
   useEffect(() => {
-    const ws = new WebSocket(`${WS_URL}?token=${token}`);
+    const ws = new WebSocket(
+      `${WS_URL}?token=${localStorage.getItem("token")}`
+    );
     ws.onopen = () => {
       setSocket(ws);
       ws.send(
@@ -28,7 +29,11 @@ export default function CanvasConnectorRoom({ roomId }: { roomId: string }) {
   }
   return (
     <div>
-      <Canvas roomId={roomId} socket={socket} token={token} />
+      <Canvas
+        roomId={roomId}
+        socket={socket}
+        token={localStorage.getItem("token") || ""}
+      />
     </div>
   );
 }

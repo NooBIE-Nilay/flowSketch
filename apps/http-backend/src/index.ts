@@ -72,8 +72,10 @@ app.get("/signin", async (req, res) => {
 });
 
 app.post("/room", authMiddleware, async (req, res) => {
-  const parsedBody = CreateRoomSchema.safeParse(req.body);
+  const parsedBody = CreateRoomSchema.safeParse(req.body.data);
   if (!parsedBody.success) {
+    console.log(parsedBody.error);
+    console.log(req.body);
     res.status(400).json({ message: "Incorrect Inputs" });
     return;
   }
@@ -142,7 +144,7 @@ app.get("/room/:slug", authMiddleware, async (req, res) => {
     }
     res.status(200).json(room);
   } catch (e) {
-    res.status(400).json({ message: "Invalid RoomID" });
+    res.status(400).json({ message: "Invalid Slug" });
     return;
   }
 });
