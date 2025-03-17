@@ -1,4 +1,4 @@
-import { HTTP_URL } from "@/config";
+import { HTTP_URL } from "@/lib/config";
 import axios from "axios";
 
 type Shape =

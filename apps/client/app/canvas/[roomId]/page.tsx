@@ -1,4 +1,4 @@
-import Canvas from "@/components/CanvasConnectorRoom";
+import CanvasConnectorRoom from "@/components/CanvasConnectorRoom";
 
 export default async function CanvasRoom({
   params,
@@ -7,5 +7,5 @@ export default async function CanvasRoom({
 }) {
   const roomId = (await params).roomId;
   if (typeof roomId !== "string") return;
-  return <Canvas roomId={roomId} />;
+  return <CanvasConnectorRoom roomId={roomId} />;
 }

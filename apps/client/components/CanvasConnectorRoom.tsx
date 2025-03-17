@@ -1,5 +1,5 @@
 "use client";
-import { WS_URL } from "@/config";
+import { WS_URL } from "@/lib/config";
 import { useEffect, useState } from "react";
 import Canvas from "./Canvas";
 //TODO: Use Hooks To Simplify The Logic,

@@ -1,6 +1,6 @@
 "use client";
 import { ModeToggle } from "@/components/modeToggle";
-import { HTTP_URL } from "@/config";
+import { HTTP_URL } from "@/lib/config";
 import { CreateRoomSchema } from "@repo/common/types";
 import { Button } from "@repo/ui/components/button";
 import { Input } from "@repo/ui/components/input";
