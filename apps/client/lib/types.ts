@@ -1,4 +1,4 @@
-export type Shape =
+export type SHAPE_TYPE =
   | {
       type: "rect";
       x: number;
