@@ -6,4 +6,5 @@ export const Tools = {
   RECTANGLE: "rectangle",
   CIRCLE: "circle",
   LINE: "line",
+  PENCIL: "pencil",
 };

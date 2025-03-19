@@ -1,8 +1,9 @@
 import { Button } from "@repo/ui/components/button";
-import { act, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import rough from "roughjs";
 import { Drawable } from "roughjs/bin/core";
 import { Tools } from "@/lib/config";
+import { useHistory } from "@/hooks/usehistory";
 const generator = rough.generator();
 
 // TODO: Refactor Code
@@ -31,7 +32,7 @@ export default function Canvas({
   token: string;
 }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const [elements, setElements] = useState<element_type[]>([]);
+  const [elements, setElements, Undo, Redo] = useHistory<element_type[]>([]);
   const [selectedElement, setSelectedElement] =
     useState<selected_element_type>();
   const [action, setAction] = useState("none");
@@ -57,16 +58,26 @@ export default function Canvas({
     y2: number,
     tool: string
   ) => {
-    let roughElement = generator.line(0, 0, 0, 0); //TODO: Fix This HACK: {To Trick TS-Compiler}
-    if (tool == Tools.RECTANGLE)
-      roughElement = generator.rectangle(x1, y1, x2 - x1, y2 - y1);
-    else if (tool == Tools.LINE) roughElement = generator.line(x1, y1, x2, y2);
-    else if (tool == Tools.CIRCLE)
-      roughElement = generator.circle(
-        x1,
-        y1,
-        2 * distance({ x: x1, y: y1 }, { x: x2, y: y2 })
-      );
+    let roughElement;
+    switch (tool) {
+      case Tools.RECTANGLE:
+        roughElement = generator.rectangle(x1, y1, x2 - x1, y2 - y1);
+        break;
+
+      case Tools.LINE:
+        roughElement = generator.line(x1, y1, x2, y2);
+        break;
+      case Tools.CIRCLE:
+        roughElement = generator.circle(
+          x1,
+          y1,
+          2 * distance({ x: x1, y: y1 }, { x: x2, y: y2 })
+        );
+        break;
+      case Tools.PENCIL:
+      default:
+        throw new Error(`Tool Not Recognized ${tool}`);
+    }
     return { id, x1, y1, x2, y2, roughElement, tool };
   };
 
@@ -150,7 +161,7 @@ export default function Canvas({
     const updatedElement = createElement(index, x1, y1, x2, y2, type);
     const updatedElements = [...elements];
     updatedElements[index] = updatedElement;
-    setElements(updatedElements);
+    setElements(updatedElements, true);
   };
   const cursorForPosition = (position: string | null) => {
     if (!position || position === null) return "default";
@@ -204,6 +215,7 @@ export default function Canvas({
         const offsetY = clientY - selectedElement.y1;
 
         setSelectedElement({ ...selectedElement, offsetX, offsetY });
+        setElements((prevState) => prevState);
       } else {
         setAction("drawing");
         const id = elements.length;
@@ -302,6 +314,8 @@ export default function Canvas({
           </Button>
           <Button onClick={() => setSelectedTool(Tools.CIRCLE)}>Circle</Button>
           <Button onClick={() => setSelectedTool(Tools.LINE)}>Line</Button>
+          <Button onClick={() => Undo()}>Undo</Button>
+          <Button onClick={() => Redo()}>Redo</Button>
         </div>
       </div>
     </div>
