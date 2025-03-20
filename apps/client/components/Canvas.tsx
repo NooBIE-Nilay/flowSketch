@@ -4,6 +4,8 @@ import rough from "roughjs";
 import { Drawable } from "roughjs/bin/core";
 import { Tools } from "@/lib/config";
 import { useHistory } from "@/hooks/usehistory";
+import { useTheme } from "next-themes";
+import { ModeToggle } from "./modeToggle";
 const generator = rough.generator();
 
 // TODO: Refactor Code
@@ -15,6 +17,7 @@ type element_type = {
   x2: number;
   y2: number;
   roughElement: Drawable;
+  color: string;
 };
 interface selected_element_type extends element_type {
   offsetX: number;
@@ -31,6 +34,8 @@ export default function Canvas({
   roomId: string;
   token: string;
 }) {
+  const { theme } = useTheme();
+  const strokeColor = theme === "light" ? "black" : "white";
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [elements, setElements, Undo, Redo] = useHistory<element_type[]>([]);
   const [selectedElement, setSelectedElement] =
@@ -43,27 +48,30 @@ export default function Canvas({
       const canvas = canvasRef.current;
       const ctx = canvas.getContext("2d");
       ctx?.clearRect(0, 0, canvas.width, canvas.height);
-
       const roughCanvas = rough.canvas(canvas);
-
-      elements.forEach(({ roughElement }) => roughCanvas.draw(roughElement));
+      elements.forEach(({ roughElement }) => {
+        roughElement.options.stroke = strokeColor;
+        roughCanvas.draw(roughElement);
+      });
     }
-  }, [elements]);
-
+  }, [elements, strokeColor]);
+  const ClearCanvas = () => {
+    setElements([]);
+  };
   const createElement = (
     id: number,
     x1: number,
     y1: number,
     x2: number,
     y2: number,
-    tool: string
+    tool: string,
+    color: string = "primary"
   ) => {
     let roughElement;
     switch (tool) {
       case Tools.RECTANGLE:
         roughElement = generator.rectangle(x1, y1, x2 - x1, y2 - y1);
         break;
-
       case Tools.LINE:
         roughElement = generator.line(x1, y1, x2, y2);
         break;
@@ -75,10 +83,11 @@ export default function Canvas({
         );
         break;
       case Tools.PENCIL:
+      //TODO: Add Pencil Logic
       default:
         throw new Error(`Tool Not Recognized ${tool}`);
     }
-    return { id, x1, y1, x2, y2, roughElement, tool };
+    return { id, x1, y1, x2, y2, roughElement, tool, color };
   };
 
   const getElementAtPosition = (x: number, y: number) => {
@@ -314,8 +323,11 @@ export default function Canvas({
           </Button>
           <Button onClick={() => setSelectedTool(Tools.CIRCLE)}>Circle</Button>
           <Button onClick={() => setSelectedTool(Tools.LINE)}>Line</Button>
+          <Button onClick={() => setSelectedTool(Tools.PENCIL)}>Pencil</Button>
           <Button onClick={() => Undo()}>Undo</Button>
           <Button onClick={() => Redo()}>Redo</Button>
+          <Button onClick={() => ClearCanvas()}>Clear</Button>
+          <ModeToggle def />
         </div>
       </div>
     </div>
