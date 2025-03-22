@@ -1,5 +1,5 @@
 import { Button } from "@repo/ui/components/button";
-import { useEffect, useRef, useState } from "react";
+import { act, useEffect, useRef, useState } from "react";
 import rough from "roughjs";
 import { Drawable } from "roughjs/bin/core";
 import { Tools } from "@/lib/config";
@@ -49,17 +49,45 @@ export default function Canvas({
     useState<selected_element_type>();
   const [action, setAction] = useState("none");
   const [selectedTool, setSelectedTool] = useState(Tools.SELECTION);
+  const [startPanMousePosition, setStartPanMousePosition] = useState({
+    x: 0,
+    y: 0,
+  });
+  const [panOffset, setPanOffset] = useState({ x: 0, y: 0 });
 
   useEffect(() => {
     if (canvasRef.current) {
       const canvas = canvasRef.current;
       const ctx = canvas.getContext("2d");
-      if (!ctx) return;
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
       const roughCanvas = rough.canvas(canvas);
+
+      if (!ctx) return;
+      ctx.save();
+      ctx.translate(panOffset.x, panOffset.y);
+      ctx.clearRect(
+        0,
+        0,
+        canvas.width + panOffset.x,
+        canvas.height + panOffset.y
+      );
       elements.forEach((element) => renderElement(roughCanvas, ctx, element));
+      ctx.restore();
     }
-  }, [elements, strokeColor]);
+  }, [elements, strokeColor, panOffset]);
+
+  useEffect(() => {
+    const panFunction = (event: WheelEvent) => {
+      setPanOffset((prevState) => {
+        return {
+          x: prevState.x - event.deltaX,
+          y: prevState.y - event.deltaY,
+        };
+      });
+    };
+    document.addEventListener("wheel", panFunction);
+    return () => document.removeEventListener("wheel", panFunction);
+  }, []);
+
   const average = (a: number, b: number) => (a + b) / 2;
 
   function getSvgPathFromStroke(points: point[], closed = true) {
@@ -88,21 +116,23 @@ export default function Canvas({
     ctx: CanvasRenderingContext2D,
     element: element_type
   ) => {
+    if (Math.abs(panOffset.y) >= Math.min(element.y1, element.y2)) return;
     //element.roughElement exists for all primitive shapes except for  pencil tool
     if (element.roughElement) {
       element.roughElement.options.stroke = strokeColor;
+      element.roughElement.options.strokeWidth = 2;
       roughCanvas.draw(element.roughElement);
     } else {
-      //code for pencil tool
       if (!element.points) return;
       const stroke = getSvgPathFromStroke(
-        getStroke(element.points, { size: 8 })
+        getStroke(element.points, { size: 6 })
       );
       ctx.fillStyle = strokeColor;
       ctx.fill(new Path2D(stroke));
     }
   };
   const ClearCanvas = () => {
+    setPanOffset({ x: 0, y: 0 });
     setElements([]);
   };
   const createElement = (
@@ -288,10 +318,15 @@ export default function Canvas({
         return { ...coordinates };
     }
   };
+  const getMouseCoordinates = (event: React.MouseEvent<HTMLCanvasElement>) => {
+    const clientX = event.clientX - panOffset.x;
+    const clientY = event.clientY - panOffset.y;
+    return { clientX, clientY };
+  };
   const handleMouseDown = (e: React.MouseEvent<HTMLCanvasElement>) => {
     //To Check If it is RightClick / LeftClick
-    if (e.button == 0) {
-      const { clientX, clientY } = e;
+    if (e.button === 0) {
+      const { clientX, clientY } = getMouseCoordinates(e);
       if (selectedTool === Tools.SELECTION) {
         const selectedElement = getElementAtPosition(clientX, clientY);
         if (!selectedElement) return;
@@ -342,10 +377,23 @@ export default function Canvas({
         });
       }
     }
+    console.log(e.button);
+    if (e.button === 1) {
+      setAction("panning");
+    }
   };
 
   const handleMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
-    const { clientX, clientY } = e;
+    const { clientX, clientY } = getMouseCoordinates(e);
+
+    if (action === "panning") {
+      const deltaX = clientX + startPanMousePosition.x;
+      const deltaY = clientY + startPanMousePosition.y;
+      setPanOffset((prevState) => {
+        return { x: prevState.x + deltaX, y: prevState.y + deltaY };
+      });
+    }
+
     if (selectedTool == Tools.SELECTION) {
       const element = getElementAtPosition(clientX, clientY);
       if (element?.position && selectedTool === Tools.SELECTION)
@@ -442,9 +490,10 @@ export default function Canvas({
         onMouseDown={handleMouseDown}
         onMouseMove={handleMouseMove}
         onMouseUp={handleMouseUp}
+        className=" absolute bg-blue-600"
       ></canvas>
       <div className="fixed bottom-3 w-full ">
-        <div className="flex items-center justify-center gap-4">
+        <div className="flex items-center justify-center gap-4 ">
           <Button onClick={() => setSelectedTool(Tools.SELECTION)}>
             Selection
           </Button>
