@@ -9,6 +9,7 @@ import { ModeToggle } from "./modeToggle";
 import { RoughCanvas } from "roughjs/bin/canvas";
 import getStroke from "perfect-freehand";
 import { Diameter } from "lucide-react";
+import { ppid } from "process";
 const generator = rough.generator();
 
 // TODO: Refactor Code
@@ -302,12 +303,16 @@ export default function Canvas({
         if (selectedElement.tool === Tools.PENCIL) {
           if (!selectedElement.points) return;
           const offsetXArray = selectedElement.points.map((point) => {
-            if (!point) return clientX - point[0];
-            else return 0;
+            if (point[0] !== undefined) return clientX - point[0];
+            else {
+              return 0;
+            }
           });
           const offsetYArray = selectedElement.points?.map((point) => {
-            if (!point) return clientY - point[1];
-            else return 0;
+            if (point[1] !== undefined) return clientY - point[1];
+            else {
+              return 0;
+            }
           });
           setSelectedElement({
             ...selectedElement,
@@ -346,9 +351,10 @@ export default function Canvas({
     const { clientX, clientY } = e;
     if (selectedTool == Tools.SELECTION) {
       const element = getElementAtPosition(clientX, clientY);
-      (e.target as HTMLCanvasElement).style.cursor = element
-        ? cursorForPosition(element.position)
-        : "default";
+      if (element?.position === "inside")
+        (e.target as HTMLCanvasElement).style.cursor = element
+          ? cursorForPosition(element.position)
+          : "default";
     }
     if (action === "drawing") {
       const index = elements.length - 1;
@@ -358,29 +364,29 @@ export default function Canvas({
         updateEelement(index, x1, y1, clientX, clientY, selectedTool);
       }
     } else if (action === "moving" && selectedElement) {
-      const { id, x1, y1, x2, y2, tool } = selectedElement;
       if (selectedElement.tool === Tools.PENCIL) {
         if (!selectedElement.points) return;
         const updatedPoints = selectedElement.points.map((point, index) => {
           if (
             !selectedElement.offsetXArray ||
             !selectedElement.offsetYArray ||
-            !selectedElement.offsetXArray[index] ||
-            !selectedElement.offsetYArray[index]
-          )
-            return point;
+            selectedElement.offsetXArray[index] === undefined ||
+            selectedElement.offsetYArray[index] === undefined
+          ) {
+            return [0, 0];
+          }
           return [
-            selectedElement.offsetXArray[index],
-            selectedElement.offsetYArray[index],
+            clientX - selectedElement.offsetXArray[index],
+            clientY - selectedElement.offsetYArray[index],
           ];
         });
         const currentElements = [...elements];
-        console.log("Old:", currentElements, id);
-        if (!currentElements || !currentElements[id]) return;
-        currentElements[id].points = updatedPoints;
-        console.log("New:", currentElements);
-        setElements(currentElements);
+        if (!currentElements || !currentElements[selectedElement.id]) return;
+        // @ts-ignore
+        currentElements[selectedElement.id].points = updatedPoints;
+        setElements(currentElements, true);
       } else {
+        const { id, x1, y1, x2, y2, tool } = selectedElement;
         const { offsetX, offsetY } = selectedElement;
         const width = x2 - x1;
         const height = y2 - y1;
