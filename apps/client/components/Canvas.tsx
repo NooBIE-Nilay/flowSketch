@@ -8,8 +8,7 @@ import { useTheme } from "next-themes";
 import { ModeToggle } from "./modeToggle";
 import { RoughCanvas } from "roughjs/bin/canvas";
 import getStroke from "perfect-freehand";
-import { Diameter } from "lucide-react";
-import { ppid } from "process";
+
 const generator = rough.generator();
 
 // TODO: Refactor Code
@@ -115,7 +114,7 @@ export default function Canvas({
     tool: string,
     color: string = "primary"
   ) => {
-    let roughElement;
+    let roughElement = undefined;
     switch (tool) {
       case Tools.RECTANGLE:
         roughElement = generator.rectangle(x1, y1, x2 - x1, y2 - y1);
@@ -131,8 +130,6 @@ export default function Canvas({
         );
         break;
       case Tools.PENCIL:
-        //TODO: Add Pencil Logic
-        roughElement = undefined;
         return { id, tool, color, points: [[x1, y1]], x1, y1, x2, y2 };
       default:
         throw new Error(`Tool Not Recognized ${tool}`);
@@ -232,25 +229,25 @@ export default function Canvas({
     y2: number,
     tool: string
   ) => {
-    const updatedElements = [...elements];
+    const currentElements = elements.map((element) => ({ ...element }));
     switch (tool) {
       case Tools.RECTANGLE:
       case Tools.CIRCLE:
       case Tools.LINE:
-        updatedElements[index] = createElement(index, x1, y1, x2, y2, tool);
+        currentElements[index] = createElement(index, x1, y1, x2, y2, tool);
         break;
       case Tools.PENCIL:
         //TODO: Very Ugly Code, Need To Fix
-        const latestPoints = updatedElements[index]?.points;
+        const latestPoints = currentElements[index]?.points;
         if (!latestPoints) return;
         const latestPoint = latestPoints[latestPoints?.length - 1];
         if (latestPoint && distance(latestPoint, [x2, y2]) <= 5) break;
-        updatedElements[index]?.points?.push([x2, y2]);
+        currentElements[index]?.points?.push([x2, y2]);
         break;
       default:
         throw new Error(`Type Not Recognised: ${tool}`);
     }
-    setElements(updatedElements, true);
+    setElements(currentElements, true);
   };
   const cursorForPosition = (position: string | null) => {
     if (!position || position === null) return "default";
@@ -351,10 +348,11 @@ export default function Canvas({
     const { clientX, clientY } = e;
     if (selectedTool == Tools.SELECTION) {
       const element = getElementAtPosition(clientX, clientY);
-      if (element?.position === "inside")
+      if (element?.position && selectedTool === Tools.SELECTION)
         (e.target as HTMLCanvasElement).style.cursor = element
           ? cursorForPosition(element.position)
           : "default";
+      else (e.target as HTMLCanvasElement).style.cursor = "default";
     }
     if (action === "drawing") {
       const index = elements.length - 1;
@@ -380,10 +378,13 @@ export default function Canvas({
             clientY - selectedElement.offsetYArray[index],
           ];
         });
-        const currentElements = [...elements];
+        const currentElements = elements.map((element) => ({ ...element }));
         if (!currentElements || !currentElements[selectedElement.id]) return;
         // @ts-ignore
         currentElements[selectedElement.id].points = updatedPoints;
+        // console.log("Pencil Updated");
+        // console.log("Old", elements);
+        // console.log("new", currentElements);
         setElements(currentElements, true);
       } else {
         const { id, x1, y1, x2, y2, tool } = selectedElement;
