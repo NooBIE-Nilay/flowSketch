@@ -1,5 +1,5 @@
 import { Button } from "@repo/ui/components/button";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import rough from "roughjs";
 import { Drawable } from "roughjs/bin/core";
 import { Tools } from "@/lib/config";
@@ -31,7 +31,172 @@ interface selected_element_type extends element_type {
   offsetXArray?: number[];
   offsetYArray?: number[];
 }
+const average = (a: number, b: number) => (a + b) / 2;
+const distance = (a: point, b: point) => {
+  if (a[0] && b[0] && a[1] && b[1]) {
+    return Math.sqrt(Math.pow(a[0] - b[0], 2) + Math.pow(a[1] - b[1], 2));
+  }
+  return 0; // Return 0 if inputs are invalid
+};
+function getSvgPathFromStroke(points: point[], closed = true) {
+  const len = points.length;
+  if (len < 4) {
+    return ``;
+  }
+  let a = points[0];
+  let b = points[1];
+  const c = points[2];
+  // @ts-ignore
+  let result = `M${a[0].toFixed(2)},${a[1].toFixed(2)} Q${b[0].toFixed(2)},${b[1].toFixed(2)} ${average(b[0], c[0]).toFixed(2)},${average(b[1], c[1]).toFixed(2)} T`;
+  for (let i = 2, max = len - 1; i < max; i++) {
+    a = points[i];
+    b = points[i + 1];
+    // @ts-ignore
+    result += `${average(a[0], b[0]).toFixed(2)},${average(a[1], b[1]).toFixed(2)} `;
+  }
+  if (closed) {
+    result += "Z";
+  }
+  return result;
+}
 
+const createElement = (
+  id: number,
+  x1: number,
+  y1: number,
+  x2: number,
+  y2: number,
+  tool: string,
+  color: string = "primary"
+) => {
+  let roughElement = undefined;
+  switch (tool) {
+    case Tools.RECTANGLE:
+      roughElement = generator.rectangle(x1, y1, x2 - x1, y2 - y1);
+      break;
+    case Tools.LINE:
+      roughElement = generator.line(x1, y1, x2, y2);
+      break;
+    case Tools.CIRCLE:
+      roughElement = generator.circle(x1, y1, 2 * distance([x1, y1], [x2, y2]));
+      break;
+    case Tools.PENCIL:
+      return { id, tool, color, points: [[x1, y1]], x1, y1, x2, y2 };
+    default:
+      throw new Error(`Tool Not Recognized ${tool}`);
+  }
+  return { id, x1, y1, x2, y2, roughElement, tool, color };
+};
+
+const nearPoint = (
+  x: number,
+  y: number,
+  x1: number,
+  y1: number,
+  name: string
+) => {
+  return Math.abs(x - x1) < 5 && Math.abs(y - y1) < 5 ? name : null;
+};
+const onLine = (v1: point, v2: point, p: point, maxOffset = 1) => {
+  const offset = distance(v1, v2) - (distance(v1, p) + distance(v2, p));
+  return Math.abs(offset) < maxOffset ? "inside" : null;
+};
+const getPositionWithinElement = (
+  x: number,
+  y: number,
+  element: element_type
+) => {
+  const { x1, y1, x2, y2 } = element;
+  switch (element.tool) {
+    case Tools.LINE:
+      const insideLine = onLine([x1, y1], [x2, y2], [x, y]);
+      const start = nearPoint(x, y, x1, y1, "start");
+      const end = nearPoint(x, y, x2, y2, "end");
+      return start || end || insideLine;
+      break;
+    case Tools.RECTANGLE:
+      const topLeft = nearPoint(x, y, x1, y1, "tl");
+      const topRight = nearPoint(x, y, x2, y1, "tr");
+      const bottomLeft = nearPoint(x, y, x1, y2, "bl");
+      const bottomRight = nearPoint(x, y, x2, y2, "br");
+      const insideRect =
+        x >= x1 && x <= x2 && y >= y1 && y <= y2 ? "inside" : null;
+      return topLeft || topRight || bottomLeft || bottomRight || insideRect;
+    case Tools.CIRCLE:
+      const radius = distance([x1, y1], [x2, y2]);
+      const a = [x1, y1];
+      const b = [x, y];
+      const insideCircle = distance(a, b) <= radius ? "inside" : null;
+      const nearCircumferance =
+        Math.abs(distance(a, b) - radius) <= 5 ? "near" : null;
+      return nearCircumferance || insideCircle;
+    case Tools.PENCIL:
+      const betweenAnyPoint = element.points?.some((point, index) => {
+        if (!element.points) return false;
+        const nextPoint = element.points[index + 1];
+        if (!nextPoint) return false;
+        return onLine(point, nextPoint, [x, y], 5) != null;
+      });
+      return betweenAnyPoint ? "inside" : null;
+    default:
+      return null;
+  }
+};
+
+const standardiseElementCoordinates = (element: element_type) => {
+  const { x1, y1, x2, y2, tool } = element;
+  if (tool === Tools.RECTANGLE) {
+    const minX = Math.min(x1, x2);
+    const maxX = Math.max(x1, x2);
+    const minY = Math.min(y1, y2);
+    const maxY = Math.max(y1, y2);
+    return { x1: minX, y1: minY, x2: maxX, y2: maxY };
+  } else if (tool === Tools.LINE) {
+    if (x1 < x2 || (x1 == x2 && y1 < y2)) return { x1, y1, x2, y2 };
+    else return { x1: x2, y1: y2, x2: x1, y2: y1 };
+  }
+  return { x1, y1, x2, y2 };
+};
+
+const cursorForPosition = (position: string | null) => {
+  if (!position || position === null) return "default";
+  switch (position) {
+    case "tl":
+    case "br":
+    case "start":
+    case "end":
+    case "near":
+      return "nwse-resize";
+    case "tr":
+    case "bl":
+      return "nesw-resize";
+    default:
+      return "move";
+  }
+};
+const resizedCoordinates = (
+  clientX: number,
+  clientY: number,
+  position: string | null,
+  coordinates: { x1: number; y1: number; x2: number; y2: number }
+) => {
+  const { x1, x2, y1, y2 } = coordinates;
+  switch (position) {
+    case "tl":
+    case "start":
+      return { x1: clientX, y1: clientY, x2, y2 };
+    case "tr":
+      return { x2: clientX, y1: clientY, x1, y2 };
+    case "bl":
+      return { x1: clientX, y2: clientY, x2, y1 };
+    case "br":
+    case "near":
+    case "end":
+      return { x2: clientX, y2: clientY, x1, y1 };
+    default:
+      return { ...coordinates };
+  }
+};
 export default function Canvas({
   socket,
   roomId,
@@ -55,68 +220,38 @@ export default function Canvas({
   });
   const [panOffset, setPanOffset] = useState({ x: 0, y: 0 });
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (canvasRef.current) {
       const canvas = canvasRef.current;
       const ctx = canvas.getContext("2d");
       const roughCanvas = rough.canvas(canvas);
-
       if (!ctx) return;
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
       ctx.save();
       ctx.translate(panOffset.x, panOffset.y);
-      ctx.clearRect(
-        0,
-        0,
-        canvas.width + panOffset.x,
-        canvas.height + panOffset.y
-      );
       elements.forEach((element) => renderElement(roughCanvas, ctx, element));
       ctx.restore();
     }
-  }, [elements, strokeColor, panOffset]);
-
+  }, [elements, strokeColor, panOffset, action]);
+  const panFunction = (event: WheelEvent) => {
+    setPanOffset((prevState) => {
+      return {
+        x: prevState.x - event.deltaX,
+        y: prevState.y - event.deltaY,
+      };
+    });
+  };
   useEffect(() => {
-    const panFunction = (event: WheelEvent) => {
-      setPanOffset((prevState) => {
-        return {
-          x: prevState.x - event.deltaX,
-          y: prevState.y - event.deltaY,
-        };
-      });
-    };
     document.addEventListener("wheel", panFunction);
     return () => document.removeEventListener("wheel", panFunction);
   }, []);
 
-  const average = (a: number, b: number) => (a + b) / 2;
-
-  function getSvgPathFromStroke(points: point[], closed = true) {
-    const len = points.length;
-    if (len < 4) {
-      return ``;
-    }
-    let a = points[0];
-    let b = points[1];
-    const c = points[2];
-    // @ts-ignore
-    let result = `M${a[0].toFixed(2)},${a[1].toFixed(2)} Q${b[0].toFixed(2)},${b[1].toFixed(2)} ${average(b[0], c[0]).toFixed(2)},${average(b[1], c[1]).toFixed(2)} T`;
-    for (let i = 2, max = len - 1; i < max; i++) {
-      a = points[i];
-      b = points[i + 1];
-      // @ts-ignore
-      result += `${average(a[0], b[0]).toFixed(2)},${average(a[1], b[1]).toFixed(2)} `;
-    }
-    if (closed) {
-      result += "Z";
-    }
-    return result;
-  }
   const renderElement = (
     roughCanvas: RoughCanvas,
     ctx: CanvasRenderingContext2D,
     element: element_type
   ) => {
-    if (Math.abs(panOffset.y) >= Math.min(element.y1, element.y2)) return;
+    // if (Math.abs(panOffset.y) >= Math.min(element.y1, element.y2)) return;
     //element.roughElement exists for all primitive shapes except for  pencil tool
     if (element.roughElement) {
       element.roughElement.options.stroke = strokeColor;
@@ -135,37 +270,6 @@ export default function Canvas({
     setPanOffset({ x: 0, y: 0 });
     setElements([]);
   };
-  const createElement = (
-    id: number,
-    x1: number,
-    y1: number,
-    x2: number,
-    y2: number,
-    tool: string,
-    color: string = "primary"
-  ) => {
-    let roughElement = undefined;
-    switch (tool) {
-      case Tools.RECTANGLE:
-        roughElement = generator.rectangle(x1, y1, x2 - x1, y2 - y1);
-        break;
-      case Tools.LINE:
-        roughElement = generator.line(x1, y1, x2, y2);
-        break;
-      case Tools.CIRCLE:
-        roughElement = generator.circle(
-          x1,
-          y1,
-          2 * distance([x1, y1], [x2, y2])
-        );
-        break;
-      case Tools.PENCIL:
-        return { id, tool, color, points: [[x1, y1]], x1, y1, x2, y2 };
-      default:
-        throw new Error(`Tool Not Recognized ${tool}`);
-    }
-    return { id, x1, y1, x2, y2, roughElement, tool, color };
-  };
 
   const getElementAtPosition = (x: number, y: number) => {
     return elements
@@ -176,81 +280,6 @@ export default function Canvas({
       .find((element) => element.position !== null);
   };
 
-  const distance = (a: point, b: point) => {
-    if (a[0] && b[0] && a[1] && b[1]) {
-      return Math.sqrt(Math.pow(a[0] - b[0], 2) + Math.pow(a[1] - b[1], 2));
-    }
-    return 0; // Return 0 if inputs are invalid
-  };
-
-  const nearPoint = (
-    x: number,
-    y: number,
-    x1: number,
-    y1: number,
-    name: string
-  ) => {
-    return Math.abs(x - x1) < 5 && Math.abs(y - y1) < 5 ? name : null;
-  };
-  const onLine = (v1: point, v2: point, p: point, maxOffset = 1) => {
-    const offset = distance(v1, v2) - (distance(v1, p) + distance(v2, p));
-    return Math.abs(offset) < maxOffset ? "inside" : null;
-  };
-  const getPositionWithinElement = (
-    x: number,
-    y: number,
-    element: element_type
-  ) => {
-    const { x1, y1, x2, y2 } = element;
-    switch (element.tool) {
-      case Tools.LINE:
-        const insideLine = onLine([x1, y1], [x2, y2], [x, y]);
-        const start = nearPoint(x, y, x1, y1, "start");
-        const end = nearPoint(x, y, x2, y2, "end");
-        return start || end || insideLine;
-        break;
-      case Tools.RECTANGLE:
-        const topLeft = nearPoint(x, y, x1, y1, "tl");
-        const topRight = nearPoint(x, y, x2, y1, "tr");
-        const bottomLeft = nearPoint(x, y, x1, y2, "bl");
-        const bottomRight = nearPoint(x, y, x2, y2, "br");
-        const insideRect =
-          x >= x1 && x <= x2 && y >= y1 && y <= y2 ? "inside" : null;
-        return topLeft || topRight || bottomLeft || bottomRight || insideRect;
-      case Tools.CIRCLE:
-        const radius = distance([x1, y1], [x2, y2]);
-        const a = [x1, y1];
-        const b = [x, y];
-        const insideCircle = distance(a, b) <= radius ? "inside" : null;
-        const nearCircumferance =
-          Math.abs(distance(a, b) - radius) <= 5 ? "near" : null;
-        return nearCircumferance || insideCircle;
-      case Tools.PENCIL:
-        const betweenAnyPoint = element.points?.some((point, index) => {
-          if (!element.points) return false;
-          const nextPoint = element.points[index + 1];
-          if (!nextPoint) return false;
-          return onLine(point, nextPoint, [x, y], 5) != null;
-        });
-        return betweenAnyPoint ? "inside" : null;
-      default:
-        return null;
-    }
-  };
-  const standardiseElementCoordinates = (element: element_type) => {
-    const { x1, y1, x2, y2, tool } = element;
-    if (tool === Tools.RECTANGLE) {
-      const minX = Math.min(x1, x2);
-      const maxX = Math.max(x1, x2);
-      const minY = Math.min(y1, y2);
-      const maxY = Math.max(y1, y2);
-      return { x1: minX, y1: minY, x2: maxX, y2: maxY };
-    } else if (tool === Tools.LINE) {
-      if (x1 < x2 || (x1 == x2 && y1 < y2)) return { x1, y1, x2, y2 };
-      else return { x1: x2, y1: y2, x2: x1, y2: y1 };
-    }
-    return { x1, y1, x2, y2 };
-  };
   const updateEelement = (
     index: number,
     x1: number,
@@ -279,48 +308,18 @@ export default function Canvas({
     }
     setElements(currentElements, true);
   };
-  const cursorForPosition = (position: string | null) => {
-    if (!position || position === null) return "default";
-    switch (position) {
-      case "tl":
-      case "br":
-      case "start":
-      case "end":
-      case "near":
-        return "nwse-resize";
-      case "tr":
-      case "bl":
-        return "nesw-resize";
-      default:
-        return "move";
-    }
-  };
-  const resizedCoordinates = (
-    clientX: number,
-    clientY: number,
-    position: string | null,
-    coordinates: { x1: number; y1: number; x2: number; y2: number }
-  ) => {
-    const { x1, x2, y1, y2 } = coordinates;
-    switch (position) {
-      case "tl":
-      case "start":
-        return { x1: clientX, y1: clientY, x2, y2 };
-      case "tr":
-        return { x2: clientX, y1: clientY, x1, y2 };
-      case "bl":
-        return { x1: clientX, y2: clientY, x2, y1 };
-      case "br":
-      case "near":
-      case "end":
-        return { x2: clientX, y2: clientY, x1, y1 };
-      default:
-        return { ...coordinates };
-    }
-  };
+
   const getMouseCoordinates = (event: React.MouseEvent<HTMLCanvasElement>) => {
     const clientX = event.clientX - panOffset.x;
     const clientY = event.clientY - panOffset.y;
+    console.log(
+      "e:",
+      event.clientX,
+      event.clientY,
+      " panned:",
+      clientX,
+      clientY
+    );
     return { clientX, clientY };
   };
   const handleMouseDown = (e: React.MouseEvent<HTMLCanvasElement>) => {
@@ -385,7 +384,6 @@ export default function Canvas({
 
   const handleMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
     const { clientX, clientY } = getMouseCoordinates(e);
-
     if (action === "panning") {
       const deltaX = clientX + startPanMousePosition.x;
       const deltaY = clientY + startPanMousePosition.y;
@@ -490,7 +488,7 @@ export default function Canvas({
         onMouseDown={handleMouseDown}
         onMouseMove={handleMouseMove}
         onMouseUp={handleMouseUp}
-        className=" absolute bg-blue-600"
+        className=" absolute"
       ></canvas>
       <div className="fixed bottom-3 w-full ">
         <div className="flex items-center justify-center gap-4 ">
