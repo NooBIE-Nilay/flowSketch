@@ -8,6 +8,7 @@ import { useTheme } from "next-themes";
 import { ModeToggle } from "./modeToggle";
 import { RoughCanvas } from "roughjs/bin/canvas";
 import getStroke from "perfect-freehand";
+import usePressedKeys from "@/hooks/usePressedKeys";
 
 const generator = rough.generator();
 
@@ -219,6 +220,7 @@ export default function Canvas({
     y: 0,
   });
   const [panOffset, setPanOffset] = useState({ x: 0, y: 0 });
+  const pressedKeys = usePressedKeys();
 
   useLayoutEffect(() => {
     if (canvasRef.current) {
@@ -232,8 +234,9 @@ export default function Canvas({
       elements.forEach((element) => renderElement(roughCanvas, ctx, element));
       ctx.restore();
     }
-  }, [elements, strokeColor, panOffset, action]);
-  const panFunction = (event: WheelEvent) => {
+  }, [elements, strokeColor, panOffset]);
+
+  const panHandler = (event: WheelEvent) => {
     setPanOffset((prevState) => {
       return {
         x: prevState.x - event.deltaX,
@@ -241,11 +244,27 @@ export default function Canvas({
       };
     });
   };
+
   useEffect(() => {
-    document.addEventListener("wheel", panFunction);
-    return () => document.removeEventListener("wheel", panFunction);
+    document.addEventListener("wheel", panHandler);
+    return () => document.removeEventListener("wheel", panHandler);
   }, []);
 
+  useEffect(() => {
+    const undoRedoKeystrokeHandler = (event: KeyboardEvent) => {
+      if (
+        (event.metaKey || event.ctrlKey) &&
+        (event.key === "z" || event.key === "Z")
+      ) {
+        if (event.shiftKey) Redo();
+        else Undo();
+      }
+    };
+    document.addEventListener("keydown", undoRedoKeystrokeHandler);
+    return () => {
+      document.removeEventListener("keydown", undoRedoKeystrokeHandler);
+    };
+  }, [Undo, Redo]);
   const renderElement = (
     roughCanvas: RoughCanvas,
     ctx: CanvasRenderingContext2D,
@@ -312,20 +331,17 @@ export default function Canvas({
   const getMouseCoordinates = (event: React.MouseEvent<HTMLCanvasElement>) => {
     const clientX = event.clientX - panOffset.x;
     const clientY = event.clientY - panOffset.y;
-    console.log(
-      "e:",
-      event.clientX,
-      event.clientY,
-      " panned:",
-      clientX,
-      clientY
-    );
     return { clientX, clientY };
   };
   const handleMouseDown = (e: React.MouseEvent<HTMLCanvasElement>) => {
+    const { clientX, clientY } = getMouseCoordinates(e);
+    if (e.button == 1 || e.button == 4 || pressedKeys.has(" ")) {
+      setAction("panning");
+      setStartPanMousePosition({ x: clientX, y: clientY });
+      return;
+    }
     //To Check If it is RightClick / LeftClick
     if (e.button === 0) {
-      const { clientX, clientY } = getMouseCoordinates(e);
       if (selectedTool === Tools.SELECTION) {
         const selectedElement = getElementAtPosition(clientX, clientY);
         if (!selectedElement) return;
@@ -376,22 +392,20 @@ export default function Canvas({
         });
       }
     }
-    console.log(e.button);
-    if (e.button === 1) {
-      setAction("panning");
-    }
   };
 
   const handleMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
     const { clientX, clientY } = getMouseCoordinates(e);
     if (action === "panning") {
-      const deltaX = clientX + startPanMousePosition.x;
-      const deltaY = clientY + startPanMousePosition.y;
+      const deltaX = clientX - startPanMousePosition.x;
+      const deltaY = clientY - startPanMousePosition.y;
       setPanOffset((prevState) => {
         return { x: prevState.x + deltaX, y: prevState.y + deltaY };
       });
     }
-
+    if (pressedKeys.has(" ") || action === "panning")
+      (e.target as HTMLCanvasElement).style.cursor = "grab";
+    else (e.target as HTMLCanvasElement).style.cursor = "default";
     if (selectedTool == Tools.SELECTION) {
       const element = getElementAtPosition(clientX, clientY);
       if (element?.position && selectedTool === Tools.SELECTION)
@@ -428,9 +442,6 @@ export default function Canvas({
         if (!currentElements || !currentElements[selectedElement.id]) return;
         // @ts-ignore
         currentElements[selectedElement.id].points = updatedPoints;
-        // console.log("Pencil Updated");
-        // console.log("Old", elements);
-        // console.log("new", currentElements);
         setElements(currentElements, true);
       } else {
         const { id, x1, y1, x2, y2, tool } = selectedElement;
@@ -460,6 +471,9 @@ export default function Canvas({
     }
   };
   const handleMouseUp = (e: React.MouseEvent<HTMLCanvasElement>) => {
+    if (e.button === 4 || e.button === 1) {
+      setAction("none");
+    }
     if (e.button == 0) {
       if (
         (action === "drawing" || action === "resizing") &&
