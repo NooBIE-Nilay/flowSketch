@@ -12,29 +12,49 @@ datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
 }
-model User {
-  id                    String    @id @default(uuid())
-  email              String @unique
-  password      String
-  name             String
-  avatar            String?
-  rooms Room[]
-  chats Chat[]
-}
-model Room{
-  id Int      @id @default(autoincrement())
-  slug String @unique
-  createdAt DateTime @default(now())
-  adminId String
-  admin User @relation(fields: [adminId], references: [id])
-  chats Chat[]
 
+model User {
+  id       String    @id @default(uuid())
+  email    String    @unique
+  password String
+  name     String
+  avatar   String?
+  rooms    Room[]
+  chats    Chat[]
+  Element  Element[]
 }
-model Chat{
-  id Int @id @default(autoincrement())
+
+model Room {
+  id        Int       @id @default(autoincrement())
+  slug      String    @unique
+  createdAt DateTime  @default(now())
+  adminId   String
+  admin     User      @relation(fields: [adminId], references: [id])
+  chats     Chat[]
+  Element   Element[]
+}
+
+model Chat {
+  id      Int    @id @default(autoincrement())
   message String
-  userId String
-  roomId Int 
-  room Room @relation(fields: [roomId],references: [id])
-  user User @relation(fields: [userId],references: [id])
+  userId  String
+  roomId  Int
+  room    Room   @relation(fields: [roomId], references: [id])
+  user    User   @relation(fields: [userId], references: [id])
+}
+
+model Element {
+  id            Int     @id @default(autoincrement())
+  tool          String
+  x1            Int
+  y1            Int
+  x2            Int
+  y2            Int
+  roughElements String?
+  points        Int[]
+  color         String
+  userId        String
+  roomId        Int
+  user          User    @relation(fields: [userId], references: [id])
+  room          Room    @relation(fields: [roomId], references: [id])
 }

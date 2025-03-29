@@ -19,7 +19,7 @@ import {
 import { useState } from "react";
 import { SigninSchema, SignupSchema } from "@repo/common/types";
 import axios from "axios";
-import { HTTP_URL } from "@/app/config";
+import { HTTP_URL } from "@/lib/config";
 import { useRouter } from "next/navigation";
 
 export default function AuthCard({
