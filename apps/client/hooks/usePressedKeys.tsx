@@ -1,10 +1,16 @@
 import { useEffect, useState } from "react";
 
 export default function usePressedKeys() {
-  const [pressedKeys, setPressedKeys] = useState(new Set());
+  const [pressedKeys, setPressedKeys] = useState<Set<string>>(
+    new Set<string>()
+  );
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
-      setPressedKeys((prevKeys) => new Set(prevKeys).add(event.key));
+      setPressedKeys((prevKeys) => {
+        const updatedKeys = new Set(prevKeys);
+        updatedKeys.add(event.key);
+        return updatedKeys;
+      });
     };
     const handleKeyUp = (event: KeyboardEvent) => {
       setPressedKeys((prevKeys) => {

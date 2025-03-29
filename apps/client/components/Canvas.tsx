@@ -1,203 +1,27 @@
 import { Button } from "@repo/ui/components/button";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import rough from "roughjs";
-import { Drawable } from "roughjs/bin/core";
 import { Tools } from "@/lib/config";
+import { selected_element_type, element_type } from "@/lib/types";
 import { useHistory } from "@/hooks/usehistory";
 import { useTheme } from "next-themes";
 import { ModeToggle } from "./modeToggle";
 import { RoughCanvas } from "roughjs/bin/canvas";
 import getStroke from "perfect-freehand";
 import usePressedKeys from "@/hooks/usePressedKeys";
+import {
+  createElement,
+  cursorForPosition,
+  distance,
+  getElementAtPosition,
+  getPositionWithinElement,
+  renderElement,
+  resizedCoordinates,
+  standardiseElementCoordinates,
+} from "@/lib/utils";
 
 const generator = rough.generator();
 
-// TODO: Refactor Code
-type element_type = {
-  tool: string;
-  id: number;
-  x1: number;
-  y1: number;
-  x2: number;
-  y2: number;
-  roughElement?: Drawable;
-  points?: point[];
-  color: string;
-};
-type point = number[];
-interface selected_element_type extends element_type {
-  offsetX?: number;
-  offsetY?: number;
-  position: string | null;
-  offsetXArray?: number[];
-  offsetYArray?: number[];
-}
-const average = (a: number, b: number) => (a + b) / 2;
-const distance = (a: point, b: point) => {
-  if (a[0] && b[0] && a[1] && b[1]) {
-    return Math.sqrt(Math.pow(a[0] - b[0], 2) + Math.pow(a[1] - b[1], 2));
-  }
-  return 0; // Return 0 if inputs are invalid
-};
-function getSvgPathFromStroke(points: point[], closed = true) {
-  const len = points.length;
-  if (len < 4) {
-    return ``;
-  }
-  let a = points[0];
-  let b = points[1];
-  const c = points[2];
-  // @ts-ignore
-  let result = `M${a[0].toFixed(2)},${a[1].toFixed(2)} Q${b[0].toFixed(2)},${b[1].toFixed(2)} ${average(b[0], c[0]).toFixed(2)},${average(b[1], c[1]).toFixed(2)} T`;
-  for (let i = 2, max = len - 1; i < max; i++) {
-    a = points[i];
-    b = points[i + 1];
-    // @ts-ignore
-    result += `${average(a[0], b[0]).toFixed(2)},${average(a[1], b[1]).toFixed(2)} `;
-  }
-  if (closed) {
-    result += "Z";
-  }
-  return result;
-}
-
-const createElement = (
-  id: number,
-  x1: number,
-  y1: number,
-  x2: number,
-  y2: number,
-  tool: string,
-  color: string = "primary"
-) => {
-  let roughElement = undefined;
-  switch (tool) {
-    case Tools.RECTANGLE:
-      roughElement = generator.rectangle(x1, y1, x2 - x1, y2 - y1);
-      break;
-    case Tools.LINE:
-      roughElement = generator.line(x1, y1, x2, y2);
-      break;
-    case Tools.CIRCLE:
-      roughElement = generator.circle(x1, y1, 2 * distance([x1, y1], [x2, y2]));
-      break;
-    case Tools.PENCIL:
-      return { id, tool, color, points: [[x1, y1]], x1, y1, x2, y2 };
-    default:
-      throw new Error(`Tool Not Recognized ${tool}`);
-  }
-  return { id, x1, y1, x2, y2, roughElement, tool, color };
-};
-
-const nearPoint = (
-  x: number,
-  y: number,
-  x1: number,
-  y1: number,
-  name: string
-) => {
-  return Math.abs(x - x1) < 5 && Math.abs(y - y1) < 5 ? name : null;
-};
-const onLine = (v1: point, v2: point, p: point, maxOffset = 1) => {
-  const offset = distance(v1, v2) - (distance(v1, p) + distance(v2, p));
-  return Math.abs(offset) < maxOffset ? "inside" : null;
-};
-const getPositionWithinElement = (
-  x: number,
-  y: number,
-  element: element_type
-) => {
-  const { x1, y1, x2, y2 } = element;
-  switch (element.tool) {
-    case Tools.LINE:
-      const insideLine = onLine([x1, y1], [x2, y2], [x, y]);
-      const start = nearPoint(x, y, x1, y1, "start");
-      const end = nearPoint(x, y, x2, y2, "end");
-      return start || end || insideLine;
-      break;
-    case Tools.RECTANGLE:
-      const topLeft = nearPoint(x, y, x1, y1, "tl");
-      const topRight = nearPoint(x, y, x2, y1, "tr");
-      const bottomLeft = nearPoint(x, y, x1, y2, "bl");
-      const bottomRight = nearPoint(x, y, x2, y2, "br");
-      const insideRect =
-        x >= x1 && x <= x2 && y >= y1 && y <= y2 ? "inside" : null;
-      return topLeft || topRight || bottomLeft || bottomRight || insideRect;
-    case Tools.CIRCLE:
-      const radius = distance([x1, y1], [x2, y2]);
-      const a = [x1, y1];
-      const b = [x, y];
-      const insideCircle = distance(a, b) <= radius ? "inside" : null;
-      const nearCircumferance =
-        Math.abs(distance(a, b) - radius) <= 5 ? "near" : null;
-      return nearCircumferance || insideCircle;
-    case Tools.PENCIL:
-      const betweenAnyPoint = element.points?.some((point, index) => {
-        if (!element.points) return false;
-        const nextPoint = element.points[index + 1];
-        if (!nextPoint) return false;
-        return onLine(point, nextPoint, [x, y], 5) != null;
-      });
-      return betweenAnyPoint ? "inside" : null;
-    default:
-      return null;
-  }
-};
-
-const standardiseElementCoordinates = (element: element_type) => {
-  const { x1, y1, x2, y2, tool } = element;
-  if (tool === Tools.RECTANGLE) {
-    const minX = Math.min(x1, x2);
-    const maxX = Math.max(x1, x2);
-    const minY = Math.min(y1, y2);
-    const maxY = Math.max(y1, y2);
-    return { x1: minX, y1: minY, x2: maxX, y2: maxY };
-  } else if (tool === Tools.LINE) {
-    if (x1 < x2 || (x1 == x2 && y1 < y2)) return { x1, y1, x2, y2 };
-    else return { x1: x2, y1: y2, x2: x1, y2: y1 };
-  }
-  return { x1, y1, x2, y2 };
-};
-
-const cursorForPosition = (position: string | null) => {
-  if (!position || position === null) return "default";
-  switch (position) {
-    case "tl":
-    case "br":
-    case "start":
-    case "end":
-    case "near":
-      return "nwse-resize";
-    case "tr":
-    case "bl":
-      return "nesw-resize";
-    default:
-      return "move";
-  }
-};
-const resizedCoordinates = (
-  clientX: number,
-  clientY: number,
-  position: string | null,
-  coordinates: { x1: number; y1: number; x2: number; y2: number }
-) => {
-  const { x1, x2, y1, y2 } = coordinates;
-  switch (position) {
-    case "tl":
-    case "start":
-      return { x1: clientX, y1: clientY, x2, y2 };
-    case "tr":
-      return { x2: clientX, y1: clientY, x1, y2 };
-    case "bl":
-      return { x1: clientX, y2: clientY, x2, y1 };
-    case "br":
-    case "near":
-    case "end":
-      return { x2: clientX, y2: clientY, x1, y1 };
-    default:
-      return { ...coordinates };
-  }
-};
 export default function Canvas({
   socket,
   roomId,
@@ -220,8 +44,11 @@ export default function Canvas({
     y: 0,
   });
   const [panOffset, setPanOffset] = useState({ x: 0, y: 0 });
+  const [scale, setScale] = useState(1);
+  const [scaleOffset, setScaleOffset] = useState({ x: 0, y: 0 });
   const pressedKeys = usePressedKeys();
 
+  // Rerendering Content
   useLayoutEffect(() => {
     if (canvasRef.current) {
       const canvas = canvasRef.current;
@@ -230,26 +57,25 @@ export default function Canvas({
       if (!ctx) return;
       ctx.clearRect(0, 0, canvas.width, canvas.height);
       ctx.save();
-      ctx.translate(panOffset.x, panOffset.y);
-      elements.forEach((element) => renderElement(roughCanvas, ctx, element));
+      ctx.translate(
+        panOffset.x * scale - scaleOffset.x,
+        panOffset.y * scale - scaleOffset.y
+      );
+      ctx.scale(scale, scale);
+      elements.forEach((element) =>
+        renderElement(roughCanvas, ctx, element, strokeColor)
+      );
       ctx.restore();
     }
-  }, [elements, strokeColor, panOffset]);
+  }, [elements, strokeColor, panOffset, scale, action, scaleOffset]);
 
-  const panHandler = (event: WheelEvent) => {
-    setPanOffset((prevState) => {
-      return {
-        x: prevState.x - event.deltaX,
-        y: prevState.y - event.deltaY,
-      };
-    });
-  };
-
+  //  Scrool Wheel Listener
   useEffect(() => {
-    document.addEventListener("wheel", panHandler);
-    return () => document.removeEventListener("wheel", panHandler);
-  }, []);
+    document.addEventListener("wheel", panOrZoomHandler);
+    return () => document.removeEventListener("wheel", panOrZoomHandler);
+  }, [pressedKeys]);
 
+  // Undo Redo Keyboard Handlers
   useEffect(() => {
     const undoRedoKeystrokeHandler = (event: KeyboardEvent) => {
       if (
@@ -265,40 +91,21 @@ export default function Canvas({
       document.removeEventListener("keydown", undoRedoKeystrokeHandler);
     };
   }, [Undo, Redo]);
-  const renderElement = (
-    roughCanvas: RoughCanvas,
-    ctx: CanvasRenderingContext2D,
-    element: element_type
-  ) => {
-    // if (Math.abs(panOffset.y) >= Math.min(element.y1, element.y2)) return;
-    //element.roughElement exists for all primitive shapes except for  pencil tool
-    if (element.roughElement) {
-      element.roughElement.options.stroke = strokeColor;
-      element.roughElement.options.strokeWidth = 2;
-      roughCanvas.draw(element.roughElement);
-    } else {
-      if (!element.points) return;
-      const stroke = getSvgPathFromStroke(
-        getStroke(element.points, { size: 6 })
-      );
-      ctx.fillStyle = strokeColor;
-      ctx.fill(new Path2D(stroke));
-    }
-  };
+
+  // Clear Canvas and move offsets to 0
   const ClearCanvas = () => {
     setPanOffset({ x: 0, y: 0 });
+    setScaleOffset({ x: 0, y: 0 });
+    setScale(1);
     setElements([]);
   };
 
-  const getElementAtPosition = (x: number, y: number) => {
-    return elements
-      .map((element) => ({
-        ...element,
-        position: getPositionWithinElement(x, y, element),
-      }))
-      .find((element) => element.position !== null);
+  // Scale Handler
+  const onZoom = (delta: number) => {
+    setScale((prev) => Math.min(Math.max(prev + delta, 0.1), 20));
   };
 
+  //Element Update
   const updateEelement = (
     index: number,
     x1: number,
@@ -312,7 +119,15 @@ export default function Canvas({
       case Tools.RECTANGLE:
       case Tools.CIRCLE:
       case Tools.LINE:
-        currentElements[index] = createElement(index, x1, y1, x2, y2, tool);
+        currentElements[index] = createElement(
+          generator,
+          index,
+          x1,
+          y1,
+          x2,
+          y2,
+          tool
+        );
         break;
       case Tools.PENCIL:
         //TODO: Very Ugly Code, Need To Fix
@@ -328,10 +143,39 @@ export default function Canvas({
     setElements(currentElements, true);
   };
 
-  const getMouseCoordinates = (event: React.MouseEvent<HTMLCanvasElement>) => {
-    const clientX = event.clientX - panOffset.x;
-    const clientY = event.clientY - panOffset.y;
+  // Standard Mouse Coordinates based on offsets
+  const getMouseCoordinates = (
+    event: React.MouseEvent<HTMLCanvasElement> | WheelEvent
+  ) => {
+    const clientX =
+      (event.clientX - panOffset.x * scale + scaleOffset.x) / scale;
+    const clientY =
+      (event.clientY - panOffset.y * scale + scaleOffset.y) / scale;
     return { clientX, clientY };
+  };
+
+  // Mouse Handlers
+  const panOrZoomHandler = (event: WheelEvent) => {
+    //TODO: Fix Zoom To Center at Mouse Pointer
+    if (pressedKeys.has("Meta") || pressedKeys.has("Control")) {
+      const canvas = canvasRef.current;
+      if (!canvas) return;
+      const scaledWidth = canvas.width * (scale + event.deltaY * -0.01);
+      const scaledHeight = canvas.height * (scale + event.deltaY * -0.01);
+      const scaleOffsetX = (scaledWidth - canvas.width) / 2;
+      const scaleOffsetY = (scaledHeight - canvas.height) / 2;
+      setScaleOffset({
+        x: scaleOffsetX,
+        y: scaleOffsetY,
+      });
+      onZoom(event.deltaY * -0.01);
+    } else
+      setPanOffset((prevState) => {
+        return {
+          x: prevState.x - event.deltaX,
+          y: prevState.y - event.deltaY,
+        };
+      });
   };
   const handleMouseDown = (e: React.MouseEvent<HTMLCanvasElement>) => {
     const { clientX, clientY } = getMouseCoordinates(e);
@@ -343,7 +187,11 @@ export default function Canvas({
     //To Check If it is RightClick / LeftClick
     if (e.button === 0) {
       if (selectedTool === Tools.SELECTION) {
-        const selectedElement = getElementAtPosition(clientX, clientY);
+        const selectedElement = getElementAtPosition(
+          clientX,
+          clientY,
+          elements
+        );
         if (!selectedElement) return;
         if (selectedElement.position === "inside") setAction("moving");
         else setAction("resizing");
@@ -376,6 +224,7 @@ export default function Canvas({
         setAction("drawing");
         const id = elements.length;
         const element = createElement(
+          generator,
           id,
           clientX,
           clientY,
@@ -393,7 +242,6 @@ export default function Canvas({
       }
     }
   };
-
   const handleMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
     const { clientX, clientY } = getMouseCoordinates(e);
     if (action === "panning") {
@@ -407,7 +255,7 @@ export default function Canvas({
       (e.target as HTMLCanvasElement).style.cursor = "grab";
     else (e.target as HTMLCanvasElement).style.cursor = "default";
     if (selectedTool == Tools.SELECTION) {
-      const element = getElementAtPosition(clientX, clientY);
+      const element = getElementAtPosition(clientX, clientY, elements);
       if (element?.position && selectedTool === Tools.SELECTION)
         (e.target as HTMLCanvasElement).style.cursor = element
           ? cursorForPosition(element.position)
@@ -493,6 +341,7 @@ export default function Canvas({
       //TODO: Update Last Element to the DB, socket instance
     }
   };
+
   return (
     <div>
       <canvas
@@ -517,6 +366,16 @@ export default function Canvas({
           <Button onClick={() => setSelectedTool(Tools.PENCIL)}>Pencil</Button>
           <Button onClick={() => Undo()}>Undo</Button>
           <Button onClick={() => Redo()}>Redo</Button>
+          <Button onClick={() => onZoom(-0.1)}>-</Button>
+          <Button
+            onClick={() => {
+              setScale(1);
+              setScaleOffset({ x: 0, y: 0 });
+            }}
+          >
+            {Math.round(scale * 100)}%
+          </Button>
+          <Button onClick={() => onZoom(+0.1)}>+</Button>
           <Button onClick={() => ClearCanvas()}>Clear</Button>
           <ModeToggle def />
         </div>
