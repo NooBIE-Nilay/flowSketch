@@ -1,7 +1,7 @@
 import { Button } from "@repo/ui/components/button";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import rough from "roughjs";
-import { Tools } from "@/lib/config";
+import { Tools, Actions } from "@/lib/enums";
 import { selected_element_type, element_type } from "@/lib/types";
 import { useHistory } from "@/hooks/usehistory";
 import { useTheme } from "next-themes";
@@ -14,7 +14,6 @@ import {
   cursorForPosition,
   distance,
   getElementAtPosition,
-  getPositionWithinElement,
   renderElement,
   resizedCoordinates,
   standardiseElementCoordinates,
@@ -37,7 +36,7 @@ export default function Canvas({
   const [elements, setElements, Undo, Redo] = useHistory<element_type[]>([]);
   const [selectedElement, setSelectedElement] =
     useState<selected_element_type>();
-  const [action, setAction] = useState("none");
+  const [action, setAction] = useState(Actions.NONE);
   const [selectedTool, setSelectedTool] = useState(Tools.SELECTION);
   const [startPanMousePosition, setStartPanMousePosition] = useState({
     x: 0,
@@ -180,7 +179,7 @@ export default function Canvas({
   const handleMouseDown = (e: React.MouseEvent<HTMLCanvasElement>) => {
     const { clientX, clientY } = getMouseCoordinates(e);
     if (e.button == 1 || e.button == 4 || pressedKeys.has(" ")) {
-      setAction("panning");
+      setAction(Actions.PAN);
       setStartPanMousePosition({ x: clientX, y: clientY });
       return;
     }
@@ -193,8 +192,8 @@ export default function Canvas({
           elements
         );
         if (!selectedElement) return;
-        if (selectedElement.position === "inside") setAction("moving");
-        else setAction("resizing");
+        if (selectedElement.position === "inside") setAction(Actions.MOVE);
+        else setAction(Actions.RESIZE);
         if (selectedElement.tool === Tools.PENCIL) {
           if (!selectedElement.points) return;
           const offsetXArray = selectedElement.points.map((point) => {
@@ -221,7 +220,7 @@ export default function Canvas({
         }
         setElements((prevState) => prevState);
       } else {
-        setAction("drawing");
+        setAction(Actions.DRAW);
         const id = elements.length;
         const element = createElement(
           generator,
@@ -244,14 +243,14 @@ export default function Canvas({
   };
   const handleMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
     const { clientX, clientY } = getMouseCoordinates(e);
-    if (action === "panning") {
+    if (action === Actions.PAN) {
       const deltaX = clientX - startPanMousePosition.x;
       const deltaY = clientY - startPanMousePosition.y;
       setPanOffset((prevState) => {
         return { x: prevState.x + deltaX, y: prevState.y + deltaY };
       });
     }
-    if (pressedKeys.has(" ") || action === "panning")
+    if (pressedKeys.has(" ") || action === Actions.PAN)
       (e.target as HTMLCanvasElement).style.cursor = "grab";
     else (e.target as HTMLCanvasElement).style.cursor = "default";
     if (selectedTool == Tools.SELECTION) {
@@ -262,14 +261,14 @@ export default function Canvas({
           : "default";
       else (e.target as HTMLCanvasElement).style.cursor = "default";
     }
-    if (action === "drawing") {
+    if (action === Actions.DRAW) {
       const index = elements.length - 1;
       const element = elements[index];
       if (element) {
         const { x1, y1 } = element;
         updateEelement(index, x1, y1, clientX, clientY, selectedTool);
       }
-    } else if (action === "moving" && selectedElement) {
+    } else if (action === Actions.MOVE && selectedElement) {
       if (selectedElement.tool === Tools.PENCIL) {
         if (!selectedElement.points) return;
         const updatedPoints = selectedElement.points.map((point, index) => {
@@ -307,7 +306,7 @@ export default function Canvas({
           tool
         );
       }
-    } else if (action === "resizing" && selectedElement) {
+    } else if (action === Actions.RESIZE && selectedElement) {
       const { id, tool, position, ...coordinates } = selectedElement;
       const { x1, x2, y1, y2 } = resizedCoordinates(
         clientX,
@@ -320,11 +319,11 @@ export default function Canvas({
   };
   const handleMouseUp = (e: React.MouseEvent<HTMLCanvasElement>) => {
     if (e.button === 4 || e.button === 1) {
-      setAction("none");
+      setAction(Actions.NONE);
     }
     if (e.button == 0) {
       if (
-        (action === "drawing" || action === "resizing") &&
+        (action === Actions.DRAW || action === Actions.RESIZE) &&
         selectedElement &&
         selectedTool !== Tools.PENCIL
       ) {
@@ -336,7 +335,7 @@ export default function Canvas({
         );
         updateEelement(id, x1, y1, x2, y2, tool);
       }
-      setAction("none");
+      setAction(Actions.NONE);
       setSelectedElement(undefined);
       //TODO: Update Last Element to the DB, socket instance
     }

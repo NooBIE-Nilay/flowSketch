@@ -1,5 +1,5 @@
 import { RoughGenerator } from "roughjs/bin/generator";
-import { Tools } from "./config";
+import { Tools } from "./enums";
 import { element_type, point } from "./types";
 import { RoughCanvas } from "roughjs/bin/canvas";
 import getStroke from "perfect-freehand";
