@@ -17,8 +17,7 @@ import {
   resizedCoordinates,
   standardiseElementCoordinates,
 } from "@/lib/utils";
-import { HTTP_URL } from "@/lib/config";
-import axios from "axios";
+import { useDrawingElements } from "@/hooks/useDrawingElements";
 
 const generator = rough.generator();
 
@@ -31,11 +30,12 @@ export default function Canvas({
   roomId: string;
   token: string;
 }) {
-  const [isLoading, setIsLoading] = useState(true);
   const { theme } = useTheme();
   const strokeColor = theme === "light" ? "black" : "white";
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const [elements, setElements, Undo, Redo] = useHistory<element_type[]>([]);
+  const [isLoading, fetchedElements] = useDrawingElements(roomId);
+  const [elements, setElements, Undo, Redo] =
+    useHistory<element_type[]>(fetchedElements);
   const [selectedElement, setSelectedElement] =
     useState<selected_element_type>();
   const [action, setAction] = useState(Actions.NONE);
@@ -48,7 +48,6 @@ export default function Canvas({
   const [scale, setScale] = useState(1);
   const [scaleOffset, setScaleOffset] = useState({ x: 0, y: 0 });
   const pressedKeys = usePressedKeys();
-
   const messageHandler = (message: any) => {
     if (message.type === "newElement") {
       try {
@@ -86,29 +85,6 @@ export default function Canvas({
       socket.onmessage = null;
     };
   });
-
-  useEffect(() => {
-    const fetchExistingData = async () => {
-      try {
-        const response = await axios.get(HTTP_URL + "/elements/" + roomId, {
-          headers: {
-            Authorization: token,
-          },
-        });
-        try {
-          if (response.data.length > 1)
-            console.log("data:", JSON.parse(response.data[0].element_data));
-        } catch (err) {
-          console.log("Error Parsing", response.data[0].element_data);
-        }
-      } catch (err) {
-        console.log(err);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-    fetchExistingData();
-  }, []);
 
   // Rerendering Content
   useLayoutEffect(() => {
@@ -297,7 +273,10 @@ export default function Canvas({
           selectedTool,
           getTempId()
         );
-        setElements((prev) => [...prev, element]);
+        setElements((prev) => {
+          if (!prev) return [element];
+          return [...prev, element];
+        });
         setSelectedElement({
           ...element,
           offsetX: 0,

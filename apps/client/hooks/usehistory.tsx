@@ -8,8 +8,8 @@ type HistorySetter<T> = (
 export function useHistory<T>(
   initialState: T
 ): [T, HistorySetter<T>, () => void, () => void] {
-  const [index, setIndex] = useState(0);
   const [history, setHistory] = useState([initialState]);
+  const [index, setIndex] = useState(initialState ? 1 : 0);
   const setState = (action: any, overwrite = false) => {
     const newState =
       typeof action === "function" ? action(history[index]) : action;
