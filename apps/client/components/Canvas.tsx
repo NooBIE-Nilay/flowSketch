@@ -1,3 +1,4 @@
+/* eslint-disable react-hooks/exhaustive-deps */
 import { Button } from "@repo/ui/components/button";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import rough from "roughjs";
@@ -18,6 +19,7 @@ import {
 } from "@/lib/utils";
 import { useDrawingElements } from "@/hooks/useDrawingElements";
 import { v4 as uuidv4 } from "uuid";
+import { Socket } from "dgram";
 const generator = rough.generator();
 // TODO: Fix UpdateElements ar WS layer
 // TODO: Fix Clear Canvas Method
@@ -57,25 +59,56 @@ export default function Canvas({
   const [scaleOffset, setScaleOffset] = useState({ x: 0, y: 0 });
   const pressedKeys = usePressedKeys();
   const messageHandler = (message: WebSocketMessage) => {
-    if (message.type === "newElement") {
-      try {
-        const newElement = JSON.parse(message.element_data);
-        setElements((prevElements) => {
-          const elementIndex = elements.findIndex(
-            (element) => element.id === message.id
-          );
-          const updatedElements = [...prevElements];
-          if (elementIndex == -1 || !updatedElements[elementIndex])
-            return [...updatedElements, newElement];
-          updatedElements[elementIndex] = {
-            ...updatedElements[elementIndex],
-            dbId: message.dbId,
-          };
-          return updatedElements;
-        });
-      } catch (e) {
-        console.log("Message Handler", e);
-      }
+    switch (message.type) {
+      case "newElement":
+        {
+          try {
+            const newElement = JSON.parse(message.element_data);
+            setElements((prevElements) => {
+              const elementIndex = elements.findIndex(
+                (element) => element.id === message.id
+              );
+              const updatedElements = [...prevElements];
+              if (elementIndex == -1 || !updatedElements[elementIndex])
+                return [...updatedElements, newElement];
+              updatedElements[elementIndex] = {
+                ...updatedElements[elementIndex],
+                dbId: message.dbId || "",
+              };
+              return updatedElements;
+            });
+          } catch (e) {
+            console.log("Message Handler", e);
+          }
+        }
+        break;
+      case "updateElement":
+        {
+          try {
+            setElements((prev) => {
+              const updatedElementIndex = prev.findIndex(
+                (element) => element.dbId === message.dbId
+              );
+              if (updatedElementIndex === -1) return prev;
+              const updatedElements = new Array(...prev);
+              try {
+                updatedElements[updatedElementIndex] = JSON.parse(
+                  message.element_data
+                );
+                return updatedElements;
+              } catch (err) {
+                console.log("Error Parsong updateElement SocketData", err);
+                return prev;
+              }
+            });
+          } catch (e) {
+            console.log("Update Element Socket", e);
+          }
+        }
+        break;
+      default:
+        console.log("Invalid Message");
+        break;
     }
   };
 
@@ -119,7 +152,6 @@ export default function Canvas({
   useEffect(() => {
     document.addEventListener("wheel", panOrZoomHandler);
     return () => document.removeEventListener("wheel", panOrZoomHandler);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pressedKeys]);
 
   // Undo Redo Keyboard Handlers
@@ -139,7 +171,6 @@ export default function Canvas({
     };
   }, [Undo, Redo]);
 
-  // Add this after your other useEffect hooks
   useEffect(() => {
     if (!isLoading && fetchedElements && fetchedElements.length > 0) {
       setElements(fetchedElements);
@@ -169,20 +200,17 @@ export default function Canvas({
     tool: string
   ) => {
     const currentElements = elements.map((element) => ({ ...element }));
-    const id = currentElements[index]?.id || "";
+    if (!currentElements[index]) return;
+    const id = currentElements[index].id;
+    const dbId = currentElements[index].dbId;
     switch (tool) {
       case Tools.RECTANGLE:
       case Tools.CIRCLE:
       case Tools.LINE:
-        currentElements[index] = createElement(
-          id,
-          generator,
-          x1,
-          y1,
-          x2,
-          y2,
-          tool
-        );
+        currentElements[index] = {
+          dbId,
+          ...createElement(id, generator, x1, y1, x2, y2, tool),
+        };
         break;
       case Tools.PENCIL: {
         //TODO: Very Ugly Code, Need To Fix
@@ -278,15 +306,18 @@ export default function Canvas({
         setElements((prevState) => prevState);
       } else {
         setAction(Actions.DRAW);
-        const element = createElement(
-          uuidv4(),
-          generator,
-          clientX,
-          clientY,
-          clientX,
-          clientY,
-          selectedTool
-        );
+        const element = {
+          ...createElement(
+            uuidv4(),
+            generator,
+            clientX,
+            clientY,
+            clientX,
+            clientY,
+            selectedTool
+          ),
+          dbId: "",
+        };
         setElements((prev) => {
           if (!prev) return [element];
           return [...prev, element];
@@ -390,7 +421,7 @@ export default function Canvas({
   };
   const handleMouseUp = (e: React.MouseEvent<HTMLCanvasElement>) => {
     if (e.button === 4 || e.button === 1) {
-      setAction(Actions.NONE);
+      setAction(Actions.MOVE);
     }
     if (e.button == 0) {
       if (
@@ -408,20 +439,48 @@ export default function Canvas({
         );
         updateElement(index, x1, y1, x2, y2, tool);
       }
+      if (elements.length > 0 && selectedElement) {
+        switch (action) {
+          case Actions.DRAW:
+            socket.send(
+              JSON.stringify({
+                type: "newElement",
+                element_data: JSON.stringify(elements[elements.length - 1]),
+                // TODO: Update JWT to include userId
+                userId: "9aced262-8100-4341-916b-e983649fbbe3",
+                roomId,
+                id: elements[elements.length - 1]?.id,
+              })
+            );
+            break;
+          case Actions.MOVE:
+          case Actions.RESIZE:
+            console.log("Move/Resize");
+
+            {
+              socket.send(
+                JSON.stringify({
+                  type: "updateElement",
+                  element_data: JSON.stringify(
+                    elements.find(
+                      (element) => element.id === selectedElement.id
+                    )
+                  ),
+                  // TODO: Update JWT to include userId
+                  userId: "9aced262-8100-4341-916b-e983649fbbe3",
+                  roomId,
+                  id: selectedElement.id,
+                  dbId: selectedElement.dbId,
+                })
+              );
+            }
+            break;
+          default:
+            break;
+        }
+      }
       setSelectedElement(undefined);
       setAction(Actions.NONE);
-      if (elements.length >= 1) {
-        socket.send(
-          JSON.stringify({
-            type: "newElement",
-            element_data: JSON.stringify(elements[elements.length - 1]),
-            // TODO: Update JWT to include userId
-            userId: "9aced262-8100-4341-916b-e983649fbbe3",
-            roomId,
-            id: elements[elements.length - 1]?.id,
-          })
-        );
-      }
     }
   };
 

@@ -113,7 +113,7 @@ wss.on("connection", (ws, req) => {
         }
       }
       if (parsedData.type === "updateElement") {
-        const { element_data, roomId, dbId } = parsedData.data;
+        const { element_data, roomId, dbId, id } = parsedData;
         users.forEach((user) => {
           if (user.rooms.includes(roomId)) {
             user.ws.send(
@@ -127,7 +127,7 @@ wss.on("connection", (ws, req) => {
           }
         });
         try {
-          await prisma.element.update({
+          const res = await prisma.element.update({
             where: { id: dbId },
             data: {
               element_data,

@@ -19,7 +19,7 @@ export const useDrawingElements = (
         try {
           const dataArr = new Array(...response.data);
           const fetchedElements = dataArr.map((data) => {
-            return { ...JSON.parse(data.element_data), dbId: data.dbId };
+            return { ...JSON.parse(data.element_data), dbId: data.id };
           });
           setElements(fetchedElements.sort((a, b) => a.id - b.id));
         } catch (err) {

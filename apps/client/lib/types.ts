@@ -24,7 +24,7 @@ type element_type = {
   roughElement?: Drawable;
   points?: point[];
   color: string;
-  dbId?: string;
+  dbId: string;
 };
 type point = number[];
 interface selected_element_type extends element_type {
