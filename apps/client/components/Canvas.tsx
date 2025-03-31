@@ -12,20 +12,26 @@ import {
   cursorForPosition,
   distance,
   getElementAtPosition,
-  getTempId,
   renderElement,
   resizedCoordinates,
   standardiseElementCoordinates,
 } from "@/lib/utils";
 import { useDrawingElements } from "@/hooks/useDrawingElements";
-
+import { v4 as uuidv4 } from "uuid";
 const generator = rough.generator();
 // TODO: Fix UpdateElements ar WS layer
 // TODO: Fix Clear Canvas Method
+
+interface WebSocketMessage {
+  type: string;
+  element_data: string;
+  id: string;
+  dbId?: string;
+}
+
 export default function Canvas({
   socket,
   roomId,
-  token,
 }: {
   socket: WebSocket;
   roomId: string;
@@ -35,8 +41,9 @@ export default function Canvas({
   const strokeColor = theme === "light" ? "black" : "white";
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [isLoading, fetchedElements] = useDrawingElements(roomId);
-  const [elements, setElements, Undo, Redo] =
-    useHistory<element_type[]>(fetchedElements);
+  const [elements, setElements, Undo, Redo] = useHistory<element_type>(
+    isLoading ? [] : fetchedElements
+  );
   const [selectedElement, setSelectedElement] =
     useState<selected_element_type>();
   const [action, setAction] = useState(Actions.NONE);
@@ -49,13 +56,13 @@ export default function Canvas({
   const [scale, setScale] = useState(1);
   const [scaleOffset, setScaleOffset] = useState({ x: 0, y: 0 });
   const pressedKeys = usePressedKeys();
-  const messageHandler = (message: any) => {
+  const messageHandler = (message: WebSocketMessage) => {
     if (message.type === "newElement") {
       try {
         const newElement = JSON.parse(message.element_data);
         setElements((prevElements) => {
           const elementIndex = elements.findIndex(
-            (element) => element.tempId === message.tempId
+            (element) => element.id === message.id
           );
           const updatedElements = [...prevElements];
           if (elementIndex == -1 || !updatedElements[elementIndex])
@@ -108,10 +115,11 @@ export default function Canvas({
     }
   }, [elements, strokeColor, panOffset, scale, action, scaleOffset]);
 
-  //  Scrool Wheel Listener
+  //  Scrool Wheel Listener
   useEffect(() => {
     document.addEventListener("wheel", panOrZoomHandler);
     return () => document.removeEventListener("wheel", panOrZoomHandler);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pressedKeys]);
 
   // Undo Redo Keyboard Handlers
@@ -130,6 +138,13 @@ export default function Canvas({
       document.removeEventListener("keydown", undoRedoKeystrokeHandler);
     };
   }, [Undo, Redo]);
+
+  // Add this after your other useEffect hooks
+  useEffect(() => {
+    if (!isLoading && fetchedElements && fetchedElements.length > 0) {
+      setElements(fetchedElements);
+    }
+  }, [isLoading]);
 
   // Clear Canvas and move offsets to 0
   const ClearCanvas = () => {
@@ -154,23 +169,22 @@ export default function Canvas({
     tool: string
   ) => {
     const currentElements = elements.map((element) => ({ ...element }));
-    const tempId = currentElements[index]?.tempId || "";
+    const id = currentElements[index]?.id || "";
     switch (tool) {
       case Tools.RECTANGLE:
       case Tools.CIRCLE:
       case Tools.LINE:
         currentElements[index] = createElement(
+          id,
           generator,
-          index,
           x1,
           y1,
           x2,
           y2,
-          tool,
-          tempId
+          tool
         );
         break;
-      case Tools.PENCIL:
+      case Tools.PENCIL: {
         //TODO: Very Ugly Code, Need To Fix
         const latestPoints = currentElements[index]?.points;
         if (!latestPoints) return;
@@ -178,6 +192,7 @@ export default function Canvas({
         if (latestPoint && distance(latestPoint, [x2, y2]) <= 5) break;
         currentElements[index]?.points?.push([x2, y2]);
         break;
+      }
       default:
         throw new Error(`Type Not Recognised: ${tool}`);
     }
@@ -263,16 +278,14 @@ export default function Canvas({
         setElements((prevState) => prevState);
       } else {
         setAction(Actions.DRAW);
-        const id = elements.length;
         const element = createElement(
+          uuidv4(),
           generator,
-          id,
           clientX,
           clientY,
           clientX,
           clientY,
-          selectedTool,
-          getTempId()
+          selectedTool
         );
         setElements((prev) => {
           if (!prev) return [element];
@@ -332,19 +345,28 @@ export default function Canvas({
           ];
         });
         const currentElements = elements.map((element) => ({ ...element }));
-        if (!currentElements || !currentElements[selectedElement.id]) return;
-        // @ts-ignore
-        currentElements[selectedElement.id].points = updatedPoints;
+        const selectedElementIndex = currentElements.findIndex(
+          (element) => element.id === selectedElement.id
+        );
+        if (
+          selectedElementIndex === -1 ||
+          !currentElements[selectedElementIndex]
+        )
+          return;
+        currentElements[selectedElementIndex].points = updatedPoints;
         setElements(currentElements, true);
       } else {
-        const { id, x1, y1, x2, y2, tool } = selectedElement;
+        const { x1, y1, x2, y2, tool } = selectedElement;
         const { offsetX, offsetY } = selectedElement;
         const width = x2 - x1;
         const height = y2 - y1;
         const updatedX = offsetX ? clientX - offsetX : clientX;
         const updatedY = offsetY ? clientY - offsetY : clientY;
+        const index = elements.findIndex(
+          (element) => element.id === selectedElement.id
+        );
         updateElement(
-          id,
+          index,
           updatedX,
           updatedY,
           updatedX + width,
@@ -353,14 +375,17 @@ export default function Canvas({
         );
       }
     } else if (action === Actions.RESIZE && selectedElement) {
-      const { id, tool, position, ...coordinates } = selectedElement;
+      const { tool, position, ...coordinates } = selectedElement;
+      const index = elements.findIndex(
+        (element) => element.id === selectedElement.id
+      );
       const { x1, x2, y1, y2 } = resizedCoordinates(
         clientX,
         clientY,
         position,
         coordinates
       );
-      updateElement(id, x1, y1, x2, y2, tool);
+      updateElement(index, x1, y1, x2, y2, tool);
     }
   };
   const handleMouseUp = (e: React.MouseEvent<HTMLCanvasElement>) => {
@@ -373,25 +398,27 @@ export default function Canvas({
         selectedElement &&
         selectedTool !== Tools.PENCIL
       ) {
-        const index = selectedElement.id;
+        const index = elements.findIndex(
+          (element) => element.id === selectedElement.id
+        );
         if (!elements[index]) return;
-        const { id, tool } = elements[index];
+        const { tool } = elements[index];
         const { x1, y1, x2, y2 } = standardiseElementCoordinates(
           elements[index]
         );
-        updateElement(id, x1, y1, x2, y2, tool);
+        updateElement(index, x1, y1, x2, y2, tool);
       }
-      setAction(Actions.NONE);
       setSelectedElement(undefined);
-      //TODO: Update Last Element to the DB, socket instance
+      setAction(Actions.NONE);
       if (elements.length >= 1) {
         socket.send(
           JSON.stringify({
             type: "newElement",
             element_data: JSON.stringify(elements[elements.length - 1]),
+            // TODO: Update JWT to include userId
             userId: "9aced262-8100-4341-916b-e983649fbbe3",
             roomId,
-            tempId: elements[elements.length - 1]?.tempId,
+            id: elements[elements.length - 1]?.id,
           })
         );
       }

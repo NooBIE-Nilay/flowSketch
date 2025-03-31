@@ -84,7 +84,7 @@ wss.on("connection", (ws, req) => {
         }
       }
       if (parsedData.type === "newElement") {
-        const { element_data, roomId, userId, tempId } = parsedData;
+        const { element_data, roomId, userId, id } = parsedData;
         try {
           const res = await prisma.element.create({
             data: {
@@ -99,7 +99,7 @@ wss.on("connection", (ws, req) => {
             if (user.rooms.includes(roomId)) {
               user.ws.send(
                 JSON.stringify({
-                  tempId,
+                  id,
                   type: "newElement",
                   dbId,
                   element_data,

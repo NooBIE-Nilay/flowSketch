@@ -35,17 +35,16 @@ export function getSvgPathFromStroke(points: point[], closed = true) {
 }
 export const getTempId = () => Math.random().toString(36).slice(2, 16);
 export const createElement = (
+  id: string,
   generator: RoughGenerator,
-  id: number,
   x1: number,
   y1: number,
   x2: number,
   y2: number,
   tool: string,
-  tempId: string,
   color: string = "primary"
 ): {
-  id: number;
+  id: string;
   tool: string;
   color: string;
   roughElement?: Drawable;
@@ -54,7 +53,6 @@ export const createElement = (
   y1: number;
   x2: number;
   y2: number;
-  tempId: string;
 } => {
   let roughElement = undefined;
   switch (tool) {
@@ -77,12 +75,11 @@ export const createElement = (
         y1,
         x2,
         y2,
-        tempId,
       };
     default:
       throw new Error(`Tool Not Recognized ${tool}`);
   }
-  return { id, x1, y1, x2, y2, roughElement, tool, color, tempId };
+  return { id, x1, y1, x2, y2, roughElement, tool, color };
 };
 
 export const nearPoint = (

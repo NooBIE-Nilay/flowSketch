@@ -19,7 +19,8 @@
     "perfect-freehand": "^1.2.2",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
-    "roughjs": "^4.6.6"
+    "roughjs": "^4.6.6",
+    "uuid": "^11.1.0"
   },
   "devDependencies": {
     "@repo/eslint-config": "workspace:^",

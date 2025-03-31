@@ -16,7 +16,7 @@ type SHAPE_TYPE =
     };
 type element_type = {
   tool: string;
-  id: number;
+  id: string;
   x1: number;
   y1: number;
   x2: number;
@@ -24,7 +24,6 @@ type element_type = {
   roughElement?: Drawable;
   points?: point[];
   color: string;
-  tempId: string;
   dbId?: string;
 };
 type point = number[];

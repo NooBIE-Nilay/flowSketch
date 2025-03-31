@@ -1,4 +1,4 @@
-import { useState, Dispatch, SetStateAction } from "react";
+import { useState, Dispatch, SetStateAction, useEffect } from "react";
 //TODO: Optimise the history logic to use actions instead of storing whole state
 type HistorySetter<T> = (
   action: SetStateAction<T>,
@@ -6,15 +6,15 @@ type HistorySetter<T> = (
 ) => void;
 
 export function useHistory<T>(
-  initialState: T
-): [T, HistorySetter<T>, () => void, () => void] {
+  initialState: T[]
+): [T[], HistorySetter<T[]>, () => void, () => void] {
   const [history, setHistory] = useState([initialState]);
-  const [index, setIndex] = useState(initialState ? 1 : 0);
+  const [index, setIndex] = useState(initialState.length > 0 ? 1 : 0);
   const setState = (action: any, overwrite = false) => {
     const newState =
       typeof action === "function" ? action(history[index]) : action;
     if (overwrite) {
-      const historyCopy = [...history];
+      const historyCopy = new Array(...history);
       historyCopy[index] = newState;
       setHistory(historyCopy);
     } else {
