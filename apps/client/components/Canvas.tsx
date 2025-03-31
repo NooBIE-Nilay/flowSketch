@@ -20,7 +20,8 @@ import {
 import { useDrawingElements } from "@/hooks/useDrawingElements";
 
 const generator = rough.generator();
-
+// TODO: Fix UpdateElements ar WS layer
+// TODO: Fix Clear Canvas Method
 export default function Canvas({
   socket,
   roomId,
