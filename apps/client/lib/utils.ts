@@ -3,6 +3,7 @@ import { Tools } from "./enums";
 import { element_type, point } from "./types";
 import { RoughCanvas } from "roughjs/bin/canvas";
 import getStroke from "perfect-freehand";
+import { Drawable } from "roughjs/bin/core";
 
 export const average = (a: number, b: number) => (a + b) / 2;
 export const distance = (a: point, b: point) => {
@@ -32,7 +33,7 @@ export function getSvgPathFromStroke(points: point[], closed = true) {
   }
   return result;
 }
-
+export const getTempId = () => Math.random().toString(36).slice(2, 16);
 export const createElement = (
   generator: RoughGenerator,
   id: number,
@@ -41,8 +42,20 @@ export const createElement = (
   x2: number,
   y2: number,
   tool: string,
+  tempId: string,
   color: string = "primary"
-) => {
+): {
+  id: number;
+  tool: string;
+  color: string;
+  roughElement?: Drawable;
+  points?: number[][];
+  x1: number;
+  y1: number;
+  x2: number;
+  y2: number;
+  tempId: string;
+} => {
   let roughElement = undefined;
   switch (tool) {
     case Tools.RECTANGLE:
@@ -55,11 +68,21 @@ export const createElement = (
       roughElement = generator.circle(x1, y1, 2 * distance([x1, y1], [x2, y2]));
       break;
     case Tools.PENCIL:
-      return { id, tool, color, points: [[x1, y1]], x1, y1, x2, y2 };
+      return {
+        id,
+        tool,
+        color,
+        points: [[x1, y1]],
+        x1,
+        y1,
+        x2,
+        y2,
+        tempId,
+      };
     default:
       throw new Error(`Tool Not Recognized ${tool}`);
   }
-  return { id, x1, y1, x2, y2, roughElement, tool, color };
+  return { id, x1, y1, x2, y2, roughElement, tool, color, tempId };
 };
 
 export const nearPoint = (

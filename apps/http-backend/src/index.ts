@@ -84,7 +84,7 @@ app.post("/room", authMiddleware, async (req, res) => {
     //@ts-ignore
     adminId: req.userId,
   };
-  //TODO: Combine Checking and Creating to a Single Req by checking for exception and Hnadling it better
+  //TODO: Combine Checking and Creating to a Single Req by checking for exception and Handling it better
   const presentRoom = await prisma.room.findUnique({ where: room });
   if (presentRoom) {
     res.status(400).json({ message: "Room Slug Already Exists!" });
@@ -99,6 +99,7 @@ app.post("/room", authMiddleware, async (req, res) => {
     roomId: createdRoom.id,
   });
 });
+
 app.get("/chats/:roomId", authMiddleware, async (req, res) => {
   try {
     if (!req.params.roomId) {
@@ -115,8 +116,9 @@ app.get("/chats/:roomId", authMiddleware, async (req, res) => {
         id: "desc",
       },
     });
-    if (!chats) {
-      res.status(500).json({ message: "Caanot Get Data From DB" });
+    console.log("Chats:", chats);
+    if (chats.length !== 0 && !chats) {
+      res.status(500).json({ message: "Can't Get Data From DB" });
       return;
     }
     res.status(200).json(chats);
@@ -125,6 +127,30 @@ app.get("/chats/:roomId", authMiddleware, async (req, res) => {
     return;
   }
 });
+app.get("/elements/:roomId", authMiddleware, async (req, res) => {
+  try {
+    if (!req.params.roomId) {
+      res.status(400).json({ message: "Invalid RoomID" });
+      return;
+    }
+    const roomId = Number(req.params.roomId);
+    //TODO: Verirfy if user is part of the Room Or Not!
+    const elements = await prisma.element.findMany({
+      where: {
+        roomId,
+      },
+    });
+    if (!elements) {
+      res.status(500).json({ message: "Caanot Get Data From DB" });
+      return;
+    }
+    res.status(200).json(elements);
+  } catch (e) {
+    res.status(400).json({ message: "Invalid RoomID" });
+    return;
+  }
+});
+
 app.get("/room/:slug", authMiddleware, async (req, res) => {
   try {
     if (!req.params.slug) {
@@ -139,7 +165,7 @@ app.get("/room/:slug", authMiddleware, async (req, res) => {
       },
     });
     if (!room) {
-      res.status(500).json({ message: "Caanot Get Data From DB" });
+      res.status(200).json({ message: "Slug Available, Create New Room" });
       return;
     }
     res.status(200).json(room);

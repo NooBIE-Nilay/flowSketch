@@ -1,23 +1,15 @@
 "use client";
 import { ModeToggle } from "@/components/modeToggle";
-import { HTTP_URL } from "@/lib/config";
-import { CreateRoomSchema } from "@repo/common/types";
 import { Button } from "@repo/ui/components/button";
 import { Input } from "@repo/ui/components/input";
-import axios from "axios";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { redirect } from "next/navigation";
+import { useState } from "react";
+
 //TODO: Don't Forget to remove "use client" if unncessary
 export default function Page() {
-  const router = useRouter();
   const [slug, setSlug] = useState("");
-  const [token, setToken] = useState("");
-  useEffect(() => {
-    if (typeof window !== "undefined") {
-      setToken(localStorage.getItem("token") || "");
-    }
-  });
+
   return (
     <>
       <ModeToggle />
@@ -36,57 +28,7 @@ export default function Page() {
                 setSlug(e.target.value.replace(/ /g, "-"));
               }}
             ></Input>
-            <Button
-              onClick={async () => {
-                try {
-                  const roomIdRes = await axios.get(
-                    `${HTTP_URL}/room/${slug}`,
-                    {
-                      headers: {
-                        Authorization: token,
-                      },
-                    }
-                  );
-                  if (roomIdRes.data) {
-                    router.replace(`/canvas/${roomIdRes.data.id}`);
-                    return;
-                  }
-                  const body = CreateRoomSchema.safeParse({ slug });
-                  const createRes = await axios.post(
-                    `${HTTP_URL}/room`,
-                    {
-                      ...body,
-                    },
-                    {
-                      headers: {
-                        Authorization: token,
-                      },
-                    }
-                  );
-                  if (createRes.data && createRes.data.roomId) {
-                    router.replace(`/canvas/${createRes.data.roomId}`);
-                  }
-                } catch (e) {
-                  const body = CreateRoomSchema.safeParse({ slug });
-                  console.log(token);
-                  const createRes = await axios({
-                    method: "post",
-                    url: `${HTTP_URL}/room`,
-                    data: {
-                      ...body,
-                    },
-                    headers: {
-                      Authorization: token,
-                    },
-                  });
-
-                  if (createRes.data && createRes.data.roomId) {
-                    router.replace(`/canvas/${createRes.data.roomId}`);
-                  }
-                }
-              }}
-              type="submit"
-            >
+            <Button onClick={() => redirect(`/canvas/${slug}`)} type="submit">
               Create/Join
             </Button>
           </div>

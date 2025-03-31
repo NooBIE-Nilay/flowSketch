@@ -36,7 +36,6 @@ export default function AuthCard({
   async function handleSignin() {
     const parsedData = SigninSchema.safeParse({ email, password });
     if (!parsedData || parsedData.error) {
-      alert(parsedData.error.message);
       console.log(parsedData.error);
       return;
     }

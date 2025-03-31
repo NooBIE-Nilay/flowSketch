@@ -44,17 +44,12 @@ model Chat {
 }
 
 model Element {
-  id            Int     @id @default(autoincrement())
-  tool          String
-  x1            Int
-  y1            Int
-  x2            Int
-  y2            Int
-  roughElements String?
-  points        Int[]
-  color         String
-  userId        String
-  roomId        Int
-  user          User    @relation(fields: [userId], references: [id])
-  room          Room    @relation(fields: [roomId], references: [id])
+  id           String   @id @default(uuid())
+  element_data String
+  creatorId    String
+  roomId       Int
+  createdAt    DateTime @default(now())
+  modifiedAt   DateTime @updatedAt
+  User         User     @relation(fields: [creatorId], references: [id])
+  Room         Room     @relation(fields: [roomId], references: [id])
 }

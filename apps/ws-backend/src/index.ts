@@ -83,8 +83,63 @@ wss.on("connection", (ws, req) => {
           console.log(e);
         }
       }
+      if (parsedData.type === "newElement") {
+        const { element_data, roomId, userId, tempId } = parsedData;
+        try {
+          const res = await prisma.element.create({
+            data: {
+              element_data,
+              creatorId: userId,
+              roomId: roomId,
+              modifiedAt: new Date(),
+            },
+          });
+          const dbId = res.id;
+          users.forEach((user) => {
+            if (user.rooms.includes(roomId)) {
+              user.ws.send(
+                JSON.stringify({
+                  tempId,
+                  type: "newElement",
+                  dbId,
+                  element_data,
+                  roomId,
+                })
+              );
+            }
+          });
+        } catch (e) {
+          console.log("DB Error:", e);
+        }
+      }
+      if (parsedData.type === "updateElement") {
+        const { element_data, roomId, dbId } = parsedData.data;
+        users.forEach((user) => {
+          if (user.rooms.includes(roomId)) {
+            user.ws.send(
+              JSON.stringify({
+                dbId,
+                type: "updateElement",
+                element_data,
+                roomId,
+              })
+            );
+          }
+        });
+        try {
+          await prisma.element.update({
+            where: { id: dbId },
+            data: {
+              element_data,
+            },
+          });
+        } catch (e) {
+          console.log("DB Error:", e);
+        }
+      }
     } catch (e) {
       ws.send(JSON.stringify({ message: "Error Pasring Data" }));
+      console.error("error parsing", e);
     }
   });
   ws.on("close", () => {

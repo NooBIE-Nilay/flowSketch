@@ -6,18 +6,19 @@ import { selected_element_type, element_type } from "@/lib/types";
 import { useHistory } from "@/hooks/usehistory";
 import { useTheme } from "next-themes";
 import { ModeToggle } from "./modeToggle";
-import { RoughCanvas } from "roughjs/bin/canvas";
-import getStroke from "perfect-freehand";
 import usePressedKeys from "@/hooks/usePressedKeys";
 import {
   createElement,
   cursorForPosition,
   distance,
   getElementAtPosition,
+  getTempId,
   renderElement,
   resizedCoordinates,
   standardiseElementCoordinates,
 } from "@/lib/utils";
+import { HTTP_URL } from "@/lib/config";
+import axios from "axios";
 
 const generator = rough.generator();
 
@@ -30,6 +31,7 @@ export default function Canvas({
   roomId: string;
   token: string;
 }) {
+  const [isLoading, setIsLoading] = useState(true);
   const { theme } = useTheme();
   const strokeColor = theme === "light" ? "black" : "white";
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -46,6 +48,67 @@ export default function Canvas({
   const [scale, setScale] = useState(1);
   const [scaleOffset, setScaleOffset] = useState({ x: 0, y: 0 });
   const pressedKeys = usePressedKeys();
+
+  const messageHandler = (message: any) => {
+    if (message.type === "newElement") {
+      try {
+        const newElement = JSON.parse(message.element_data);
+        setElements((prevElements) => {
+          const elementIndex = elements.findIndex(
+            (element) => element.tempId === message.tempId
+          );
+          const updatedElements = [...prevElements];
+          if (elementIndex == -1 || !updatedElements[elementIndex])
+            return [...updatedElements, newElement];
+          updatedElements[elementIndex] = {
+            ...updatedElements[elementIndex],
+            dbId: message.dbId,
+          };
+          return updatedElements;
+        });
+      } catch (e) {
+        console.log("Message Handler", e);
+      }
+    }
+  };
+
+  useEffect(() => {
+    const handleSocketMessage = (event: MessageEvent) => {
+      try {
+        const parsedMessage = JSON.parse(event.data.toString());
+        messageHandler(parsedMessage);
+      } catch (e) {
+        console.log("Socket Error:", e);
+      }
+    };
+    socket.onmessage = handleSocketMessage;
+    return () => {
+      socket.onmessage = null;
+    };
+  });
+
+  useEffect(() => {
+    const fetchExistingData = async () => {
+      try {
+        const response = await axios.get(HTTP_URL + "/elements/" + roomId, {
+          headers: {
+            Authorization: token,
+          },
+        });
+        try {
+          if (response.data.length > 1)
+            console.log("data:", JSON.parse(response.data[0].element_data));
+        } catch (err) {
+          console.log("Error Parsing", response.data[0].element_data);
+        }
+      } catch (err) {
+        console.log(err);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    fetchExistingData();
+  }, []);
 
   // Rerendering Content
   useLayoutEffect(() => {
@@ -105,7 +168,7 @@ export default function Canvas({
   };
 
   //Element Update
-  const updateEelement = (
+  const updateElement = (
     index: number,
     x1: number,
     y1: number,
@@ -114,6 +177,7 @@ export default function Canvas({
     tool: string
   ) => {
     const currentElements = elements.map((element) => ({ ...element }));
+    const tempId = currentElements[index]?.tempId || "";
     switch (tool) {
       case Tools.RECTANGLE:
       case Tools.CIRCLE:
@@ -125,7 +189,8 @@ export default function Canvas({
           y1,
           x2,
           y2,
-          tool
+          tool,
+          tempId
         );
         break;
       case Tools.PENCIL:
@@ -229,7 +294,8 @@ export default function Canvas({
           clientY,
           clientX,
           clientY,
-          selectedTool
+          selectedTool,
+          getTempId()
         );
         setElements((prev) => [...prev, element]);
         setSelectedElement({
@@ -266,7 +332,7 @@ export default function Canvas({
       const element = elements[index];
       if (element) {
         const { x1, y1 } = element;
-        updateEelement(index, x1, y1, clientX, clientY, selectedTool);
+        updateElement(index, x1, y1, clientX, clientY, selectedTool);
       }
     } else if (action === Actions.MOVE && selectedElement) {
       if (selectedElement.tool === Tools.PENCIL) {
@@ -297,7 +363,7 @@ export default function Canvas({
         const height = y2 - y1;
         const updatedX = offsetX ? clientX - offsetX : clientX;
         const updatedY = offsetY ? clientY - offsetY : clientY;
-        updateEelement(
+        updateElement(
           id,
           updatedX,
           updatedY,
@@ -314,7 +380,7 @@ export default function Canvas({
         position,
         coordinates
       );
-      updateEelement(id, x1, y1, x2, y2, tool);
+      updateElement(id, x1, y1, x2, y2, tool);
     }
   };
   const handleMouseUp = (e: React.MouseEvent<HTMLCanvasElement>) => {
@@ -333,52 +399,76 @@ export default function Canvas({
         const { x1, y1, x2, y2 } = standardiseElementCoordinates(
           elements[index]
         );
-        updateEelement(id, x1, y1, x2, y2, tool);
+        updateElement(id, x1, y1, x2, y2, tool);
       }
       setAction(Actions.NONE);
       setSelectedElement(undefined);
       //TODO: Update Last Element to the DB, socket instance
+      if (elements.length >= 1) {
+        socket.send(
+          JSON.stringify({
+            type: "newElement",
+            element_data: JSON.stringify(elements[elements.length - 1]),
+            userId: "9aced262-8100-4341-916b-e983649fbbe3",
+            roomId,
+            tempId: elements[elements.length - 1]?.tempId,
+          })
+        );
+      }
     }
   };
 
   return (
     <div>
-      <canvas
-        ref={canvasRef}
-        width={window.innerWidth}
-        height={window.innerHeight}
-        onMouseDown={handleMouseDown}
-        onMouseMove={handleMouseMove}
-        onMouseUp={handleMouseUp}
-        className=" absolute"
-      ></canvas>
-      <div className="fixed bottom-3 w-full ">
-        <div className="flex items-center justify-center gap-4 ">
-          <Button onClick={() => setSelectedTool(Tools.SELECTION)}>
-            Selection
-          </Button>
-          <Button onClick={() => setSelectedTool(Tools.RECTANGLE)}>
-            Rectangle
-          </Button>
-          <Button onClick={() => setSelectedTool(Tools.CIRCLE)}>Circle</Button>
-          <Button onClick={() => setSelectedTool(Tools.LINE)}>Line</Button>
-          <Button onClick={() => setSelectedTool(Tools.PENCIL)}>Pencil</Button>
-          <Button onClick={() => Undo()}>Undo</Button>
-          <Button onClick={() => Redo()}>Redo</Button>
-          <Button onClick={() => onZoom(-0.1)}>-</Button>
-          <Button
-            onClick={() => {
-              setScale(1);
-              setScaleOffset({ x: 0, y: 0 });
-            }}
-          >
-            {Math.round(scale * 100)}%
-          </Button>
-          <Button onClick={() => onZoom(+0.1)}>+</Button>
-          <Button onClick={() => ClearCanvas()}>Clear</Button>
-          <ModeToggle def />
-        </div>
-      </div>
+      {isLoading && (
+        <>
+          <h1>Loading</h1>
+        </>
+      )}
+      {!isLoading && (
+        <>
+          <canvas
+            ref={canvasRef}
+            width={window.innerWidth}
+            height={window.innerHeight}
+            onMouseDown={handleMouseDown}
+            onMouseMove={handleMouseMove}
+            onMouseUp={handleMouseUp}
+            className=" absolute"
+          ></canvas>
+          <div className="fixed bottom-3 w-full ">
+            <div className="flex items-center justify-center gap-4 ">
+              <Button onClick={() => setSelectedTool(Tools.SELECTION)}>
+                Selection
+              </Button>
+              <Button onClick={() => setSelectedTool(Tools.RECTANGLE)}>
+                Rectangle
+              </Button>
+              <Button onClick={() => setSelectedTool(Tools.CIRCLE)}>
+                Circle
+              </Button>
+              <Button onClick={() => setSelectedTool(Tools.LINE)}>Line</Button>
+              <Button onClick={() => setSelectedTool(Tools.PENCIL)}>
+                Pencil
+              </Button>
+              <Button onClick={() => Undo()}>Undo</Button>
+              <Button onClick={() => Redo()}>Redo</Button>
+              <Button onClick={() => onZoom(-0.1)}>-</Button>
+              <Button
+                onClick={() => {
+                  setScale(1);
+                  setScaleOffset({ x: 0, y: 0 });
+                }}
+              >
+                {Math.round(scale * 100)}%
+              </Button>
+              <Button onClick={() => onZoom(+0.1)}>+</Button>
+              <Button onClick={() => ClearCanvas()}>Clear</Button>
+              <ModeToggle def />
+            </div>
+          </div>
+        </>
+      )}
     </div>
   );
 }
