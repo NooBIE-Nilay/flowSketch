@@ -11,7 +11,6 @@ import { prisma } from "@repo/db/client";
 import cors from "cors";
 const app = express();
 const PORT = HTTP_PORT;
-
 app.use(express.json());
 app.use(cors());
 
@@ -174,6 +173,7 @@ app.get("/room/:slug", authMiddleware, async (req, res) => {
     return;
   }
 });
+
 app.listen(PORT, () =>
   console.log(`HTTP Server Running at http://localhost:${PORT}`)
 );

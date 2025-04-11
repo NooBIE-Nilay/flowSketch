@@ -127,7 +127,7 @@ wss.on("connection", (ws, req) => {
           }
         });
         try {
-          const res = await prisma.element.update({
+          await prisma.element.update({
             where: { id: dbId },
             data: {
               element_data,
@@ -136,6 +136,34 @@ wss.on("connection", (ws, req) => {
         } catch (e) {
           console.log("DB Error:", e);
         }
+      }
+      if (parsedData.type === "redo") {
+        const { roomId, userId } = parsedData;
+        users.forEach((user) => {
+          if (user.rooms.includes(roomId)) {
+            user.ws.send(
+              JSON.stringify({
+                type: "redo",
+                roomId,
+                userId,
+              })
+            );
+          }
+        });
+      }
+      if (parsedData.type === "undo") {
+        const { roomId, userId } = parsedData;
+        users.forEach((user) => {
+          if (user.rooms.includes(roomId)) {
+            user.ws.send(
+              JSON.stringify({
+                type: "undo",
+                roomId,
+                userId,
+              })
+            );
+          }
+        });
       }
     } catch (e) {
       ws.send(JSON.stringify({ message: "Error Pasring Data" }));

@@ -3,7 +3,7 @@ import { Button } from "@repo/ui/components/button";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import rough from "roughjs";
 import { Tools, Actions } from "@/lib/enums";
-import { selected_element_type, element_type } from "@/lib/types";
+import { selected_element_type } from "@/lib/types";
 import { useHistory } from "@/hooks/usehistory";
 import { useTheme } from "next-themes";
 import { ModeToggle } from "./modeToggle";
@@ -19,11 +19,9 @@ import {
 } from "@/lib/utils";
 import { useDrawingElements } from "@/hooks/useDrawingElements";
 import { v4 as uuidv4 } from "uuid";
-import { Socket } from "dgram";
 const generator = rough.generator();
-// TODO: Fix UpdateElements ar WS layer
-// TODO: Fix Clear Canvas Method
 
+// TODO: Implement zustand
 interface WebSocketMessage {
   type: string;
   element_data: string;
@@ -43,7 +41,7 @@ export default function Canvas({
   const strokeColor = theme === "light" ? "black" : "white";
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [isLoading, fetchedElements] = useDrawingElements(roomId);
-  const [elements, setElements, Undo, Redo] = useHistory<element_type>(
+  const [elements, setElements, Undo, Redo] = useHistory(
     isLoading ? [] : fetchedElements
   );
   const [selectedElement, setSelectedElement] =
@@ -105,6 +103,12 @@ export default function Canvas({
             console.log("Update Element Socket", e);
           }
         }
+        break;
+      case "undo":
+        Undo();
+        break;
+      case "redo":
+        Redo();
         break;
       default:
         console.log("Invalid Message");
@@ -517,8 +521,34 @@ export default function Canvas({
               <Button onClick={() => setSelectedTool(Tools.PENCIL)}>
                 Pencil
               </Button>
-              <Button onClick={() => Undo()}>Undo</Button>
-              <Button onClick={() => Redo()}>Redo</Button>
+              <Button
+                onClick={() => {
+                  Undo();
+                  socket.send(
+                    JSON.stringify({
+                      type: "undo",
+                      roomId,
+                      userId: "9aced262-8100-4341-916b-e983649fbbe3",
+                    })
+                  );
+                }}
+              >
+                Undo
+              </Button>
+              <Button
+                onClick={() => {
+                  Redo();
+                  socket.send(
+                    JSON.stringify({
+                      type: "redo",
+                      roomId,
+                      userId: "9aced262-8100-4341-916b-e983649fbbe3",
+                    })
+                  );
+                }}
+              >
+                Redo
+              </Button>
               <Button onClick={() => onZoom(-0.1)}>-</Button>
               <Button
                 onClick={() => {
