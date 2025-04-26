@@ -21,7 +21,6 @@ import { useDrawingElements } from "@/hooks/useDrawingElements";
 import { v4 as uuidv4 } from "uuid";
 const generator = rough.generator();
 
-// TODO: Implement zustand
 interface WebSocketMessage {
   type: string;
   element_data: string;
