@@ -1,15 +1,14 @@
 /* eslint-disable react-hooks/exhaustive-deps */
 import { Button } from "@repo/ui/components/button";
-import {
-  ButtonHTMLAttributes,
-  useEffect,
-  useLayoutEffect,
-  useRef,
-  useState,
-} from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import rough from "roughjs";
 import { Tools, Actions } from "@/lib/enums";
-import { element_type, selected_element_type, state_type } from "@/lib/types";
+import {
+  element_type,
+  flow_type,
+  selected_element_type,
+  state_type,
+} from "@/lib/types";
 import { useHistory } from "@/hooks/usehistory";
 import { useTheme } from "next-themes";
 import { ModeToggle } from "./modeToggle";
@@ -63,7 +62,8 @@ export default function Canvas({
   const pressedKeys = usePressedKeys();
   const [isFlowState, setIsFlowState] = useState(false);
   const [flowStates, setFlowStates] = useState<state_type[]>([]);
-  const [flowElements, setFlowElements] = useState<element_type[]>([]);
+  // const [flowElements, setFlowElements] = useState<element_type[]>([]);
+  const [flowElementIndex, setFlowElementIndex] = useState(-1);
   const messageHandler = (message: WebSocketMessage) => {
     switch (message.type) {
       case "newElement":
@@ -330,14 +330,12 @@ export default function Canvas({
           ),
           dbId: "",
         };
-        if (isFlowState) {
-          setFlowElements((prev) => [...prev, element]);
-        } else {
-          setElements((prev) => {
-            if (!prev) return [element];
-            return [...prev, element];
-          });
-        }
+        // Clear-NooBIE
+        // if (isFlowState) {
+        //   setFlowElements((prev) => [...prev, element]);
+        // } else {
+        setElements((prev) => [...prev, element]);
+        // }
         setSelectedElement({
           ...element,
           offsetX: 0,
@@ -501,9 +499,70 @@ export default function Canvas({
       setAction(Actions.NONE);
     }
   };
-  const handleFlowStart = (e: any) => {};
-  const handleFlowEnd = (e: any) => {};
-  const handleSnapshot = (e: any) => {};
+  const handleFlowStart = (e: any) => {
+    setFlowElementIndex(elements.length);
+    setFlowStates([]);
+    setIsFlowState(true);
+  };
+  const handleFlowEnd = (e: any) => {
+    if (flowElementIndex == -1) return;
+    const flow_elements = elements.filter(
+      (element, index) => index >= flowElementIndex
+    );
+    setFlowStates((prev) => [
+      ...prev,
+      {
+        stateId: uuidv4(),
+        stateIndex: prev.length + 1,
+        elements: flow_elements,
+      },
+    ]);
+    const newFlow: flow_type = {
+      id: uuidv4(),
+      stateLength: flowStates.length,
+      states: flowStates,
+    };
+    const element = {
+      tool: Tools.FLOW,
+      id: uuidv4(),
+      x1: 0,
+      x2: 0,
+      y1: 0,
+      y2: 0,
+      color: "primary",
+      flow_data: newFlow,
+    };
+    socket.send(
+      JSON.stringify({
+        type: "newFlowElement",
+        element_data: JSON.stringify(element),
+        // TODO: Update JWT to include userId
+        userId: "9aced262-8100-4341-916b-e983649fbbe3",
+        roomId,
+        id: newFlow.id,
+      })
+    );
+    setElements((prev) =>
+      prev.filter((element, index) => index < flowElementIndex)
+    );
+    setFlowElementIndex(-1);
+    setFlowStates([]);
+    setIsFlowState(false);
+  };
+  const handleSnapshot = (e: any) => {
+    const flowElements = elements.filter(
+      (el, index) => index >= flowElementIndex
+    );
+    setFlowStates((prev) => [
+      ...prev,
+      {
+        stateId: uuidv4(),
+        stateIndex: prev.length + 1,
+        elements: flowElements,
+      },
+    ]);
+    setFlowElementIndex(elements.length);
+  };
   return (
     <div>
       {isLoading && (
@@ -543,11 +602,7 @@ export default function Canvas({
                 </div>
               )}
               {!isFlowState && (
-                <Button
-                  className="bg-blue-500 hover:bg-blue-500/90"
-                  size={"sm"}
-                  onClick={handleFlowStart}
-                >
+                <Button size={"sm"} onClick={handleFlowStart}>
                   Flow ⏯
                 </Button>
               )}

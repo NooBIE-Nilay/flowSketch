@@ -14,6 +14,11 @@ type SHAPE_TYPE =
       centerY: number;
       r: number;
     };
+type flow_type = {
+  id: string;
+  stateLength: number;
+  states: state_type[];
+};
 type state_type = {
   stateId: string;
   stateIndex: number;
@@ -30,7 +35,7 @@ type element_type = {
   points?: point[];
   color: string;
   dbId: string;
-  flow_data?: state_type[];
+  flow_data?: flow_type;
 };
 type point = number[];
 interface selected_element_type extends element_type {
@@ -47,4 +52,5 @@ export type {
   element_type,
   selected_element_type,
   state_type,
+  flow_type,
 };
