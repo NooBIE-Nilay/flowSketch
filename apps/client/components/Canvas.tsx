@@ -1,9 +1,15 @@
 /* eslint-disable react-hooks/exhaustive-deps */
 import { Button } from "@repo/ui/components/button";
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import {
+  ButtonHTMLAttributes,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from "react";
 import rough from "roughjs";
 import { Tools, Actions } from "@/lib/enums";
-import { selected_element_type } from "@/lib/types";
+import { element_type, selected_element_type, state_type } from "@/lib/types";
 import { useHistory } from "@/hooks/usehistory";
 import { useTheme } from "next-themes";
 import { ModeToggle } from "./modeToggle";
@@ -55,6 +61,9 @@ export default function Canvas({
   const [scale, setScale] = useState(1);
   const [scaleOffset, setScaleOffset] = useState({ x: 0, y: 0 });
   const pressedKeys = usePressedKeys();
+  const [isFlowState, setIsFlowState] = useState(false);
+  const [flowStates, setFlowStates] = useState<state_type[]>([]);
+  const [flowElements, setFlowElements] = useState<element_type[]>([]);
   const messageHandler = (message: WebSocketMessage) => {
     switch (message.type) {
       case "newElement":
@@ -321,10 +330,14 @@ export default function Canvas({
           ),
           dbId: "",
         };
-        setElements((prev) => {
-          if (!prev) return [element];
-          return [...prev, element];
-        });
+        if (isFlowState) {
+          setFlowElements((prev) => [...prev, element]);
+        } else {
+          setElements((prev) => {
+            if (!prev) return [element];
+            return [...prev, element];
+          });
+        }
         setSelectedElement({
           ...element,
           offsetX: 0,
@@ -445,37 +458,39 @@ export default function Canvas({
       if (elements.length > 0 && selectedElement) {
         switch (action) {
           case Actions.DRAW:
-            socket.send(
-              JSON.stringify({
-                type: "newElement",
-                element_data: JSON.stringify(elements[elements.length - 1]),
-                // TODO: Update JWT to include userId
-                userId: "9aced262-8100-4341-916b-e983649fbbe3",
-                roomId,
-                id: elements[elements.length - 1]?.id,
-              })
-            );
+            !isFlowState &&
+              socket.send(
+                JSON.stringify({
+                  type: "newElement",
+                  element_data: JSON.stringify(elements[elements.length - 1]),
+                  // TODO: Update JWT to include userId
+                  userId: "9aced262-8100-4341-916b-e983649fbbe3",
+                  roomId,
+                  id: elements[elements.length - 1]?.id,
+                })
+              );
             break;
           case Actions.MOVE:
           case Actions.RESIZE:
             console.log("Move/Resize");
 
             {
-              socket.send(
-                JSON.stringify({
-                  type: "updateElement",
-                  element_data: JSON.stringify(
-                    elements.find(
-                      (element) => element.id === selectedElement.id
-                    )
-                  ),
-                  // TODO: Update JWT to include userId
-                  userId: "9aced262-8100-4341-916b-e983649fbbe3",
-                  roomId,
-                  id: selectedElement.id,
-                  dbId: selectedElement.dbId,
-                })
-              );
+              !isFlowState &&
+                socket.send(
+                  JSON.stringify({
+                    type: "updateElement",
+                    element_data: JSON.stringify(
+                      elements.find(
+                        (element) => element.id === selectedElement.id
+                      )
+                    ),
+                    // TODO: Update JWT to include userId
+                    userId: "9aced262-8100-4341-916b-e983649fbbe3",
+                    roomId,
+                    id: selectedElement.id,
+                    dbId: selectedElement.dbId,
+                  })
+                );
             }
             break;
           default:
@@ -486,7 +501,9 @@ export default function Canvas({
       setAction(Actions.NONE);
     }
   };
-
+  const handleFlowStart = (e: any) => {};
+  const handleFlowEnd = (e: any) => {};
+  const handleSnapshot = (e: any) => {};
   return (
     <div>
       {isLoading && (
@@ -506,30 +523,95 @@ export default function Canvas({
             className=" absolute"
           ></canvas>
           <div className="fixed bottom-3 w-full ">
-            <div className="flex items-center justify-center gap-4 ">
-              <Button onClick={() => setSelectedTool(Tools.SELECTION)}>
+            <div className="grid grid-cols-6 gap-1 ">
+              {isFlowState && (
+                <div className="flex justify-evenly">
+                  <Button
+                    size={"sm"}
+                    className="bg-red-500/80 hover:bg-red-500/70 text-white/80 font-semibold"
+                    onClick={handleSnapshot}
+                  >
+                    Flex ⏺
+                  </Button>
+                  <Button
+                    className="bg-blue-500 hover:bg-blue-500/90"
+                    size={"sm"}
+                    onClick={handleFlowEnd}
+                  >
+                    Flow ⏹
+                  </Button>
+                </div>
+              )}
+              {!isFlowState && (
+                <Button
+                  className="bg-blue-500 hover:bg-blue-500/90"
+                  size={"sm"}
+                  onClick={handleFlowStart}
+                >
+                  Flow ⏯
+                </Button>
+              )}
+              <Button
+                className={
+                  selectedTool == Tools.SELECTION
+                    ? "bg-blue-500 hover:bg-blue-500/90"
+                    : ""
+                }
+                onClick={() => setSelectedTool(Tools.SELECTION)}
+              >
                 Selection
               </Button>
-              <Button onClick={() => setSelectedTool(Tools.RECTANGLE)}>
+              <Button
+                className={
+                  selectedTool == Tools.RECTANGLE
+                    ? "bg-blue-500 hover:bg-blue-500/90"
+                    : ""
+                }
+                onClick={() => setSelectedTool(Tools.RECTANGLE)}
+              >
                 Rectangle
               </Button>
-              <Button onClick={() => setSelectedTool(Tools.CIRCLE)}>
+              <Button
+                className={
+                  selectedTool == Tools.CIRCLE
+                    ? "bg-blue-500 hover:bg-blue-500/90"
+                    : ""
+                }
+                onClick={() => setSelectedTool(Tools.CIRCLE)}
+              >
                 Circle
               </Button>
-              <Button onClick={() => setSelectedTool(Tools.LINE)}>Line</Button>
-              <Button onClick={() => setSelectedTool(Tools.PENCIL)}>
+              <Button
+                className={
+                  selectedTool == Tools.LINE
+                    ? "bg-blue-500 hover:bg-blue-500/90"
+                    : ""
+                }
+                onClick={() => setSelectedTool(Tools.LINE)}
+              >
+                Line
+              </Button>
+              <Button
+                className={
+                  selectedTool == Tools.PENCIL
+                    ? "bg-blue-500 hover:bg-blue-500/90"
+                    : ""
+                }
+                onClick={() => setSelectedTool(Tools.PENCIL)}
+              >
                 Pencil
               </Button>
               <Button
                 onClick={() => {
                   Undo();
-                  socket.send(
-                    JSON.stringify({
-                      type: "undo",
-                      roomId,
-                      userId: "9aced262-8100-4341-916b-e983649fbbe3",
-                    })
-                  );
+                  !isFlowState &&
+                    socket.send(
+                      JSON.stringify({
+                        type: "undo",
+                        roomId,
+                        userId: "9aced262-8100-4341-916b-e983649fbbe3",
+                      })
+                    );
                 }}
               >
                 Undo
@@ -537,13 +619,14 @@ export default function Canvas({
               <Button
                 onClick={() => {
                   Redo();
-                  socket.send(
-                    JSON.stringify({
-                      type: "redo",
-                      roomId,
-                      userId: "9aced262-8100-4341-916b-e983649fbbe3",
-                    })
-                  );
+                  !isFlowState &&
+                    socket.send(
+                      JSON.stringify({
+                        type: "redo",
+                        roomId,
+                        userId: "9aced262-8100-4341-916b-e983649fbbe3",
+                      })
+                    );
                 }}
               >
                 Redo

@@ -137,20 +137,7 @@ wss.on("connection", (ws, req) => {
           console.log("DB Error:", e);
         }
       }
-      if (parsedData.type === "redo") {
-        const { roomId, userId } = parsedData;
-        users.forEach((user) => {
-          if (user.rooms.includes(roomId)) {
-            user.ws.send(
-              JSON.stringify({
-                type: "redo",
-                roomId,
-                userId,
-              })
-            );
-          }
-        });
-      }
+
       if (parsedData.type === "undo") {
         const { roomId, userId } = parsedData;
         users.forEach((user) => {
@@ -158,6 +145,20 @@ wss.on("connection", (ws, req) => {
             user.ws.send(
               JSON.stringify({
                 type: "undo",
+                roomId,
+                userId,
+              })
+            );
+          }
+        });
+      }
+      if (parsedData.type === "redo") {
+        const { roomId, userId } = parsedData;
+        users.forEach((user) => {
+          if (user.rooms.includes(roomId)) {
+            user.ws.send(
+              JSON.stringify({
+                type: "redo",
                 roomId,
                 userId,
               })

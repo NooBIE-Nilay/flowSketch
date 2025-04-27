@@ -8,7 +8,7 @@ import { error } from "console";
 //TODO: Use Hooks To Simplify The Logic,
 //TODO: Use Redux to Fix this ugly state management
 export default function CanvasConnectorRoom({ slug }: { slug: string }) {
-  const [isLoading, setIsLoading] = useState(true);
+  // const [isLoading, setIsLoading] = useState(true);
   const [isError, setIsError] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
   const [socket, setSocket] = useState<WebSocket | null>(null);

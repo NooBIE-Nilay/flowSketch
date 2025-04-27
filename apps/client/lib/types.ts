@@ -14,6 +14,11 @@ type SHAPE_TYPE =
       centerY: number;
       r: number;
     };
+type state_type = {
+  stateId: string;
+  stateIndex: number;
+  elements: element_type[];
+};
 type element_type = {
   tool: string;
   id: string;
@@ -25,6 +30,7 @@ type element_type = {
   points?: point[];
   color: string;
   dbId: string;
+  flow_data?: state_type[];
 };
 type point = number[];
 interface selected_element_type extends element_type {
@@ -35,4 +41,10 @@ interface selected_element_type extends element_type {
   offsetYArray?: number[];
 }
 
-export type { SHAPE_TYPE, point, element_type, selected_element_type };
+export type {
+  SHAPE_TYPE,
+  point,
+  element_type,
+  selected_element_type,
+  state_type,
+};

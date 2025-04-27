@@ -3,7 +3,8 @@ import { element_type } from "@/lib/types";
 import axios from "axios";
 
 import { useState, SetStateAction } from "react";
-//TODO: Optimise the history logic to use actions instead of storing whole state
+// TODO: Optimise the history logic to use actions instead of storing whole state
+// TODO: Use Batch Updates to DB for state, not instantaneous
 type HistorySetter = (
   action: SetStateAction<element_type[]>,
   overwrite?: boolean

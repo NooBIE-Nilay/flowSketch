@@ -4,6 +4,7 @@ export const Tools = {
   CIRCLE: "circle",
   LINE: "line",
   PENCIL: "pencil",
+  FLOW: "flow",
 };
 
 export const Actions = {
