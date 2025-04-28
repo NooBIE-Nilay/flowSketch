@@ -201,11 +201,13 @@ export const renderElement = (
     element.roughElement.options.stroke = strokeColor;
     element.roughElement.options.strokeWidth = 2;
     roughCanvas.draw(element.roughElement);
-  } else {
-    if (!element.points) return;
+  } else if (element.points) {
     const stroke = getSvgPathFromStroke(getStroke(element.points, { size: 6 }));
     ctx.fillStyle = strokeColor;
     ctx.fill(new Path2D(stroke));
+  } else if (element.flow_data) {
+  } else {
+    return;
   }
 };
 export const getElementAtPosition = (

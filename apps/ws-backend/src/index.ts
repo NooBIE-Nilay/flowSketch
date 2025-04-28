@@ -112,6 +112,35 @@ wss.on("connection", (ws, req) => {
           console.log("DB Error:", e);
         }
       }
+      if (parsedData.type === "newFlowElement") {
+        const { element_data, roomId, userId, id } = parsedData;
+        try {
+          const res = await prisma.element.create({
+            data: {
+              element_data,
+              creatorId: userId,
+              roomId: roomId,
+              modifiedAt: new Date(),
+            },
+          });
+          const dbId = res.id;
+          users.forEach((user) => {
+            if (user.rooms.includes(roomId)) {
+              user.ws.send(
+                JSON.stringify({
+                  id,
+                  type: "newFlowElement",
+                  dbId,
+                  element_data,
+                  roomId,
+                })
+              );
+            }
+          });
+        } catch (e) {
+          console.log("DB Error:", e);
+        }
+      }
       if (parsedData.type === "updateElement") {
         const { element_data, roomId, dbId, id } = parsedData;
         users.forEach((user) => {

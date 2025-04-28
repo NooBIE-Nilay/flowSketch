@@ -3,12 +3,7 @@ import { Button } from "@repo/ui/components/button";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import rough from "roughjs";
 import { Tools, Actions } from "@/lib/enums";
-import {
-  element_type,
-  flow_type,
-  selected_element_type,
-  state_type,
-} from "@/lib/types";
+import { flow_type, selected_element_type, state_type } from "@/lib/types";
 import { useHistory } from "@/hooks/usehistory";
 import { useTheme } from "next-themes";
 import { ModeToggle } from "./modeToggle";
@@ -62,11 +57,33 @@ export default function Canvas({
   const pressedKeys = usePressedKeys();
   const [isFlowState, setIsFlowState] = useState(false);
   const [flowStates, setFlowStates] = useState<state_type[]>([]);
-  // const [flowElements, setFlowElements] = useState<element_type[]>([]);
-  const [flowElementIndex, setFlowElementIndex] = useState(-1);
+  const [flowStateIndex, setFlowStateIndex] = useState(-1);
+  const [selectedStateIndex, setSelectedStateIndex] = useState(0);
   const messageHandler = (message: WebSocketMessage) => {
     switch (message.type) {
       case "newElement":
+        {
+          try {
+            const newElement = JSON.parse(message.element_data);
+            setElements((prevElements) => {
+              const elementIndex = elements.findIndex(
+                (element) => element.id === message.id
+              );
+              const updatedElements = [...prevElements];
+              if (elementIndex == -1 || !updatedElements[elementIndex])
+                return [...updatedElements, newElement];
+              updatedElements[elementIndex] = {
+                ...updatedElements[elementIndex],
+                dbId: message.dbId || "",
+              };
+              return updatedElements;
+            });
+          } catch (e) {
+            console.log("Message Handler", e);
+          }
+        }
+        break;
+      case "newFlowElement":
         {
           try {
             const newElement = JSON.parse(message.element_data);
@@ -153,12 +170,26 @@ export default function Canvas({
         panOffset.y * scale - scaleOffset.y
       );
       ctx.scale(scale, scale);
-      elements.forEach((element) =>
-        renderElement(roughCanvas, ctx, element, strokeColor)
-      );
+      elements.forEach((element) => {
+        if (element.flow_data) {
+          element.flow_data.states[selectedStateIndex]?.elements.forEach(
+            (fElement) => {
+              renderElement(roughCanvas, ctx, fElement, "blue");
+            }
+          );
+        } else renderElement(roughCanvas, ctx, element, strokeColor);
+      });
       ctx.restore();
     }
-  }, [elements, strokeColor, panOffset, scale, action, scaleOffset]);
+  }, [
+    elements,
+    strokeColor,
+    panOffset,
+    scale,
+    action,
+    scaleOffset,
+    selectedStateIndex,
+  ]);
 
   //  Scrool Wheel Listener
   useEffect(() => {
@@ -330,12 +361,7 @@ export default function Canvas({
           ),
           dbId: "",
         };
-        // Clear-NooBIE
-        // if (isFlowState) {
-        //   setFlowElements((prev) => [...prev, element]);
-        // } else {
         setElements((prev) => [...prev, element]);
-        // }
         setSelectedElement({
           ...element,
           offsetX: 0,
@@ -499,28 +525,29 @@ export default function Canvas({
       setAction(Actions.NONE);
     }
   };
-  const handleFlowStart = (e: any) => {
-    setFlowElementIndex(elements.length);
+  const handleFlowStart = () => {
+    setFlowStateIndex(elements.length);
     setFlowStates([]);
     setIsFlowState(true);
   };
-  const handleFlowEnd = (e: any) => {
-    if (flowElementIndex == -1) return;
-    const flow_elements = elements.filter(
-      (element, index) => index >= flowElementIndex
+  const handleFlowEnd = () => {
+    if (flowStateIndex == -1) alert("Coudn't Create Flow");
+
+    const flowElements = elements.filter(
+      (el, index) => index >= flowStateIndex
     );
-    setFlowStates((prev) => [
-      ...prev,
-      {
-        stateId: uuidv4(),
-        stateIndex: prev.length + 1,
-        elements: flow_elements,
-      },
-    ]);
+    setFlowStateIndex(elements.length);
     const newFlow: flow_type = {
       id: uuidv4(),
       stateLength: flowStates.length,
-      states: flowStates,
+      states: [
+        ...flowStates,
+        {
+          stateId: uuidv4(),
+          stateIndex: flowStates.length + 1,
+          elements: flowElements,
+        },
+      ],
     };
     const element = {
       tool: Tools.FLOW,
@@ -543,15 +570,15 @@ export default function Canvas({
       })
     );
     setElements((prev) =>
-      prev.filter((element, index) => index < flowElementIndex)
+      prev.filter((element, index) => index < flowStateIndex)
     );
-    setFlowElementIndex(-1);
+    setFlowStateIndex(-1);
     setFlowStates([]);
     setIsFlowState(false);
   };
-  const handleSnapshot = (e: any) => {
+  const handleSnapshot = () => {
     const flowElements = elements.filter(
-      (el, index) => index >= flowElementIndex
+      (el, index) => index >= flowStateIndex
     );
     setFlowStates((prev) => [
       ...prev,
@@ -561,7 +588,6 @@ export default function Canvas({
         elements: flowElements,
       },
     ]);
-    setFlowElementIndex(elements.length);
   };
   return (
     <div>
@@ -590,20 +616,20 @@ export default function Canvas({
                     className="bg-red-500/80 hover:bg-red-500/70 text-white/80 font-semibold"
                     onClick={handleSnapshot}
                   >
-                    Flex ⏺
+                    Snap ⏺
                   </Button>
                   <Button
                     className="bg-blue-500 hover:bg-blue-500/90"
                     size={"sm"}
                     onClick={handleFlowEnd}
                   >
-                    Flow ⏹
+                    Stop ⏹
                   </Button>
                 </div>
               )}
               {!isFlowState && (
                 <Button size={"sm"} onClick={handleFlowStart}>
-                  Flow ⏯
+                  Start Flow ⏯
                 </Button>
               )}
               <Button
@@ -686,16 +712,28 @@ export default function Canvas({
               >
                 Redo
               </Button>
-              <Button onClick={() => onZoom(-0.1)}>-</Button>
+              {/* <Button onClick={() => onZoom(-0.1)}>-</Button> */}
+              <Button
+                onClick={() => setSelectedStateIndex((index) => index - 1)}
+              >
+                F-
+              </Button>
               <Button
                 onClick={() => {
-                  setScale(1);
-                  setScaleOffset({ x: 0, y: 0 });
+                  // setScale(1);
+                  // setScaleOffset({ x: 0, y: 0 });
+                  setSelectedStateIndex(0);
                 }}
               >
-                {Math.round(scale * 100)}%
+                {/* {Math.round(scale * 100)}% */}
+                {selectedStateIndex}
               </Button>
-              <Button onClick={() => onZoom(+0.1)}>+</Button>
+              <Button
+                onClick={() => setSelectedStateIndex((index) => index + 1)}
+              >
+                F+
+              </Button>
+              {/* <Button onClick={() => onZoom(+0.1)}>+</Button> */}
               <Button onClick={() => ClearCanvas()}>Clear</Button>
               <ModeToggle def />
             </div>
