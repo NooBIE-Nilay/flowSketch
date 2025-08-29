@@ -6,6 +6,7 @@
 
 generator client {
   provider = "prisma-client-js"
+    output   = "../generated/prisma"
 }
 
 datasource db {
@@ -21,7 +22,6 @@ model User {
   avatar   String?
   rooms    Room[]
   chats    Chat[]
-  Element  Element[]
 }
 
 model Room {
@@ -50,6 +50,6 @@ model Element {
   roomId       Int
   createdAt    DateTime @default(now())
   modifiedAt   DateTime @updatedAt
-  User         User     @relation(fields: [creatorId], references: [id])
+  // User         User     @relation(fields: [creatorId], references: [id])
   Room         Room     @relation(fields: [roomId], references: [id])
 }

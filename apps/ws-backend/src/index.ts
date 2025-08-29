@@ -85,6 +85,7 @@ wss.on("connection", (ws, req) => {
       }
       if (parsedData.type === "newElement") {
         const { element_data, roomId, userId, id } = parsedData;
+        console.log(userId);
         try {
           const res = await prisma.element.create({
             data: {

@@ -26,7 +26,7 @@ app.post("/signup", async (req, res) => {
   }
   //TODO: Hash Password Before Saving
   const user = parsedBody.data;
-  //TODO: Combine Checking and Creating to a Single Req by checking for exception and Hnadling it better
+  //TODO: Combine Checking and Creating to a Single Req by checking for exception and Handling it better
   const userInDb = await prisma.user.findFirst({
     where: { email: parsedBody.data.email },
   });
