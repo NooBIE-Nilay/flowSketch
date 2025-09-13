@@ -25,7 +25,7 @@ export default function Page() {
               placeholder="Slug"
               value={slug}
               onChange={(e) => {
-                setSlug(e.target.value.replace(/ /g, "-"));
+                setSlug(e.target.value.replace(" ", "-"));
               }}
             ></Input>
             <Button onClick={() => redirect(`/canvas/${slug}`)} type="submit">
